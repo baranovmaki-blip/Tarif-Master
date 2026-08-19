@@ -8,8 +8,9 @@
      "Открыть каталог тарифов" (открывает webapp.html, см. WEBAPP_URL) ->
      клиент выбирает тариф и жмёт "Купить" внутри WebApp -> WebApp
      закрывается и передаёт выбор боту (Telegram.WebApp.sendData) ->
-     web_app_data_received спрашивает подтверждение прямо в чате ->
-     "Да, подключить" (ЮKassa, фоновая проверка оплаты). В любой момент
+     web_app_data_received сразу создаёт платёж в ЮKassa и присылает ссылку
+     в чат (без повторного подтверждения — клиент уже подтвердил покупку
+     кнопкой в WebApp), дальше фоновая проверка оплаты. В любой момент
      клиент может позвать менеджера сам, бот сам предложит менеджера при
      возражении ("дорого", "подумаю" и т.п.), а если клиент "завис" — бот
      сам напоминает о себе с растущим интервалом, пока не ответит.
@@ -797,7 +798,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """WebApp закрылся и передал выбор клиента (Telegram.WebApp.sendData) —
-    запускаем тот же диалог оплаты, что был раньше, только без инлайн-каталога."""
+    клиент уже подтвердил покупку кнопкой "Купить" внутри WebApp, поэтому
+    сразу создаём платёж в ЮKassa, без лишнего повторного подтверждения в чате."""
     try:
         payload = json.loads(update.effective_message.web_app_data.data)
         tariff_name = payload["tariff"]
@@ -811,37 +813,16 @@ async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Такого тарифа не нашёл — откройте каталог ещё раз.")
         return BROWSING
 
-    context.user_data["tariff_index"] = tariffs.index(tariff)
-
-    confirm_keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton(f"✅ Да, подключить за {CONNECTION_FEE_RUB} ₽", callback_data="pay_1500")]]
-    )
-    await update.message.reply_text(
-        f"Вы выбрали тариф «{tariff['name']}». Подключить?",
-        reply_markup=confirm_keyboard,
-    )
-    return BROWSING
-
-
-async def pay_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Клиент нажал «Подключить» на карточке тарифа — создаём реальный платёж в ЮKassa."""
-    query = update.callback_query
-    await query.answer()
-
     user = update.effective_user
     _cancel_job(context, f"idle_{user.id}")
 
     order_number = context.user_data.get("order_number")
-    tariff_index = context.user_data.get("tariff_index")
-    tariffs = TARIFFS[DEFAULT_OPERATOR]
-    tariff_name = tariffs[tariff_index]["name"] if tariff_index is not None else "уточняется у клиента"
-
     if order_number in orders:
-        orders[order_number]["tariff"] = tariff_name
+        orders[order_number]["tariff"] = tariff["name"]
         _save_orders()
         await send_to_google_sheets(context, order_number)
 
-    description = f"Тариф-Мастер — подключение тарифа «{tariff_name}» (Билайн), заказ #{order_number}"
+    description = f"Тариф-Мастер — подключение тарифа «{tariff['name']}» (Билайн), заказ #{order_number}"
 
     try:
         payment_id, confirmation_url = await create_yookassa_payment(CONNECTION_FEE_RUB, description)
@@ -849,8 +830,8 @@ async def pay_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Даже если оплата онлайн не собралась — менеджер остаётся рабочим
         # путём подключения, клиент не должен упереться в тупик.
         logger.exception("Не удалось создать платёж в ЮKassa")
-        await query.edit_message_text(
-            f"Для подключения тарифа «{tariff_name}» напишите нашему менеджеру:\n"
+        await update.message.reply_text(
+            f"Для подключения тарифа «{tariff['name']}» напишите нашему менеджеру:\n"
             f"@{MANAGER_TELEGRAM_USERNAME}\n\n"
             "Оплата онлайн сейчас недоступна — сообщите об этом менеджеру."
         )
@@ -869,8 +850,9 @@ async def pay_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE)
         name=f"remind_{order_number}",
     )
 
-    await query.edit_message_text(
-        f"Для подключения тарифа «{tariff_name}» напишите нашему менеджеру:\n"
+    await update.message.reply_text(
+        f"Вы выбрали тариф «{tariff['name']}».\n\n"
+        f"Для подключения напишите нашему менеджеру:\n"
         f"@{MANAGER_TELEGRAM_USERNAME}\n\n"
         f"Или оплатите онлайн: {confirmation_url}\n\n"
         "После оплаты тариф будет подключён автоматически."
@@ -1333,7 +1315,7 @@ async def idle_nudge_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Клиент долго не принимал решение — напоминаем о себе и сразу планируем
     следующее напоминание с увеличенным интервалом (см. IDLE_NUDGE_STEP_SECONDS).
     Цепочка повторяется, пока клиент не нажмёт любую кнопку — это отменяет job
-    по имени f"idle_{user_id}" (см. _cancel_job в pay_button_pressed,
+    по имени f"idle_{user_id}" (см. _cancel_job в web_app_data_received,
     human_button_pressed)."""
     data = context.job.data
     await context.bot.send_message(
@@ -1426,7 +1408,6 @@ def main() -> None:
         states={
             BROWSING: [
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_received),
-                CallbackQueryHandler(pay_button_pressed, pattern="^pay_1500$"),
                 CallbackQueryHandler(human_button_pressed, pattern="^human$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, question_during_offer),
             ],
