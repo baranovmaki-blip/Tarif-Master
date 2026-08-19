@@ -1,10 +1,10 @@
 services:
   - type: worker
     name: tarif-master-bot
-    runtime: python
+    runtime: docker
     plan: starter
-    buildCommand: "pip install -r requirements.txt && playwright install chromium"
-    startCommand: "python bot.py"
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: BOT_TOKEN
         sync: false
