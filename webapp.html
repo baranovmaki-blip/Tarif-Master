@@ -71,6 +71,19 @@
     padding: 4px 8px;
     border-radius: 999px;
   }
+  .router-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: #0A6E6E;
+    color: var(--white);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    max-width: calc(100% - 20px);
+  }
 
   .old-price {
     color: rgba(26,26,26,0.5);
@@ -420,7 +433,6 @@
         "Мобильный интернет по всей России в сети Билайн — 35 ГБ",
         "SMS и MMS по РФ в домашней сети и в поездках по РФ — 300 SMS",
       ] },
-    { name: "Гибкий интернет 2.0",      price: 500,  priceAfter: null, gb: "безлимит", minutes: null, sms: null, short: "Безлимитный интернет, звонки на Билайн бесплатно" },
     { name: "Решение за 550",           price: 559,  priceAfter: null, gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения",
       details: [
         "Мобильный интернет в странах «Зоны 1» и на территории Беларуси — 500 МБ",
@@ -452,6 +464,7 @@
         "SMS и MMS по РФ в домашней сети и в поездках по РФ — 1000 SMS",
         "Мобильный интернет в странах «Зоны 1» и на территории Беларуси — 2 ГБ",
       ] },
+    { name: "Гибкий интернет 2.0",      price: 500,  priceAfter: null, gb: "безлимит", minutes: null, sms: null, short: "Безлимитный интернет, звонки на Билайн бесплатно", router: true },
     { name: "Пробизнес 3.0 (6000 мин)", price: 3000, priceAfter: null, gb: "безлимит", minutes: 6000, sms: 2000, short: "Максимум минут и SMS",
       details: [
         "Безлимитный интернет",
@@ -506,6 +519,7 @@
         <div class="tariff-card">
           ${t.hit ? '<div class="hit-badge">🔥 ХИТ</div>' : ""}
           ${t.priceAfter ? '<div class="discount-badge">Скидка</div>' : ""}
+          ${t.router ? '<div class="router-badge">📶 Решение для роутера</div>' : ""}
           <div class="label">Тариф</div>
           <div class="name">${t.name}</div>
           <div class="stats">${stats}</div>
@@ -551,6 +565,7 @@
     // с сайта, как у "Решение за 550"), используем его вместо общих строк.
     // Плюс общие для всех тарифов факты, подтверждённые пользователем.
     const includes = [];
+    if (t.router) includes.push("📶 Готовое решение для роутера / модема");
     if (t.details) {
       includes.push(...t.details);
     } else {
