@@ -127,17 +127,34 @@
   // сколько клиент будет платить оператору ежемесячно, это другая величина.
   const CONNECTION_FEE = 1500;
 
-  // Тарифы Билайн — только реальные, зашиты прямо в код (как и просили).
+  // Тарифы Билайн — реальные, с mycompany.beeline.ru (те же данные, что и в
+  // TARIFFS в bot.py — держите оба списка в синхроне при правках).
+  // gb: число ГБ либо строка "безлимит". minutes/sms: число либо null, если
+  // оператор не показывает эту цифру для тарифа.
   const TARIFFS = [
-    { name: "Всё за 350",    price: 350,  gb: 30, minutes: 600,  sms: 300, short: "Для интернет-серфинга и звонков" },
-    { name: "Близкие люди",  price: 400,  gb: 20, minutes: 1000, sms: 0,   short: "Для звонков на номера Билайн" },
-    { name: "Билайн 0",      price: 0,    gb: 1,  minutes: 0,    sms: 0,   short: "Для тех, кто почти не пользуется связью" },
-    { name: "Мои правила",   price: 500,  gb: 40, minutes: 800,  sms: 0,   short: "Свой набор минут и гигабайт" },
-    { name: "Проще",         price: 450,  gb: 15, minutes: 500,  sms: 0,   short: "Базовый тариф" },
-    { name: "Семейный",      price: 700,  gb: 50, minutes: 1500, sms: 0,   short: "Для всей семьи" },
-    { name: "Корпоративный", price: 600,  gb: 30, minutes: 2000, sms: 0,   short: "Для бизнеса" },
-    { name: "VIP-тариф",     price: 1200, gb: 80, minutes: 3000, sms: 0,   short: "Максимум возможностей" },
+    { name: "Пробизнес 1.0 (600 мин)",  price: 229,  gb: "безлимит", minutes: 600,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
+    { name: "Пробизнес 1.0 (900 мин)",  price: 270,  gb: "безлимит", minutes: 900,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
+    { name: "Решение за 300",           price: 305,  gb: "безлимит", minutes: 500,  sms: 100,  short: "Безлимитный интернет по доступной цене" },
+    { name: "Пробизнес 3.0 (2000 мин)", price: 364,  gb: "безлимит", minutes: 2000, sms: 1000, short: "Скидка 35% на первые 12 месяцев" },
+    { name: "Решение за 400",           price: 407,  gb: 35,         minutes: 800,  sms: 300,  short: "35 ГБ плюс безлимитный интернет по России" },
+    { name: "Пробизнес 2.0 (1500 мин)", price: 460,  gb: "безлимит", minutes: 1500, sms: 500,  short: "Баланс интернета и звонков для бизнеса" },
+    { name: "Гибкий интернет 2.0",      price: 500,  gb: "безлимит", minutes: null, sms: null, short: "Безлимитный интернет, звонки на Билайн бесплатно" },
+    { name: "Решение за 550",           price: 559,  gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения" },
+    { name: "Пробизнес 3.0 (2500 мин)", price: 610,  gb: "безлимит", minutes: 2500, sms: 1000, short: "Для среднего бизнеса" },
+    { name: "Пробизнес 3.0 (3000 мин)", price: 715,  gb: "безлимит", minutes: 3000, sms: 1000, short: "Для активного бизнес-общения" },
+    { name: "Пробизнес 3.0 (5000 мин)", price: 1020, gb: "безлимит", minutes: 5000, sms: 1000, short: "Много минут для компании" },
+    { name: "Пробизнес 3.0 (6000 мин)", price: 3000, gb: "безлимит", minutes: 6000, sms: 2000, short: "Максимум минут и SMS" },
   ];
+
+  function fmtGb(gb) {
+    return gb === "безлимит" ? "Безлимит" : gb + " ГБ";
+  }
+  function fmtMinutes(minutes) {
+    return minutes == null ? "—" : minutes + " минут";
+  }
+  function fmtSms(sms) {
+    return sms == null ? "—" : sms + " SMS";
+  }
 
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg) {
@@ -159,7 +176,7 @@
       card.onclick = () => showDetail(i);
       card.innerHTML = `
         <div class="name">${t.name}</div>
-        <div class="meta">${t.price} ₽/мес · ${t.gb} ГБ</div>
+        <div class="meta">${t.price} ₽/мес · ${fmtGb(t.gb)}</div>
         <div class="short">${t.short}</div>
       `;
       list.appendChild(card);
@@ -170,9 +187,9 @@
     selectedTariff = TARIFFS[index];
     document.getElementById("detail-name").textContent = "📌 " + selectedTariff.name.toUpperCase();
     document.getElementById("detail-price").textContent = selectedTariff.price + " ₽/мес";
-    document.getElementById("detail-gb").textContent = selectedTariff.gb + " ГБ";
-    document.getElementById("detail-minutes").textContent = selectedTariff.minutes + " минут";
-    document.getElementById("detail-sms").textContent = selectedTariff.sms + " SMS";
+    document.getElementById("detail-gb").textContent = fmtGb(selectedTariff.gb);
+    document.getElementById("detail-minutes").textContent = fmtMinutes(selectedTariff.minutes);
+    document.getElementById("detail-sms").textContent = fmtSms(selectedTariff.sms);
     document.getElementById("detail-desc").textContent = selectedTariff.short + ".";
     document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
 
