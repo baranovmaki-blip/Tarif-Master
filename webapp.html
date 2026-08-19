@@ -163,6 +163,10 @@
       <span class="icon">🛡</span>
       <span>Гарантия: не подключили тариф — вернём деньги за подключение в течение 3 дней.</span>
     </div>
+    <div class="guarantee-box">
+      <span class="icon">📄</span>
+      <span>Паспорт не нужен — для подключения достаточно кода из SMS.</span>
+    </div>
 
     <div class="section-title">Как подключить</div>
     <ol class="steps-list">
@@ -257,13 +261,14 @@
     document.getElementById("detail-desc").textContent = t.short + ".";
     document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
 
-    // "Что входит" — только реально подтверждённые пункты по этому тарифу,
-    // ничего не придумываем сверху того, что видно в его данных.
+    // "Что входит" — реальные пункты по данным тарифа плюс два общих для
+    // всех тарифов факта, подтверждённых пользователем (паспорт/раздача Wi-Fi).
     const includes = [];
     includes.push(t.minutes != null ? t.minutes + " минут по России" : "Звонки по России — без ограничений по минутам");
     includes.push("Безлимитные звонки на номера Билайн");
     includes.push(t.gb === "безлимит" ? "Безлимитный интернет" : t.gb + " ГБ интернета");
     if (t.sms != null) includes.push(t.sms + " SMS");
+    includes.push("Безлимитная раздача интернета по Wi-Fi");
     if (t.priceAfter) includes.push("Скидка на абонентскую плату — первые 12 месяцев");
     document.getElementById("detail-includes").innerHTML = includes.map(x => `<li>${x}</li>`).join("");
 
