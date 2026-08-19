@@ -71,10 +71,49 @@
   .stat-row .value { color: var(--white); font-weight: 600; }
 
   .detail-desc {
-    margin: 16px 0 24px;
+    margin: 16px 0 20px;
     font-size: 14px;
     line-height: 1.5;
     color: #cfcfcf;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--yellow);
+    margin: 20px 0 10px;
+  }
+  .bullet-list, .steps-list {
+    margin: 0 0 4px;
+    padding-left: 20px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #e0e0e0;
+  }
+  .steps-list { padding-left: 22px; }
+
+  .guarantee-box {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: var(--card-bg);
+    border: 1px solid var(--yellow);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin: 18px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #e0e0e0;
+  }
+  .guarantee-box .icon { font-size: 18px; }
+
+  .note {
+    font-size: 12px;
+    color: var(--gray);
+    line-height: 1.5;
+    margin: 14px 0 24px;
   }
 
   .buy-btn {
@@ -116,6 +155,24 @@
     <div class="stat-row"><span class="label">📞 Минуты</span><span class="value" id="detail-minutes"></span></div>
     <div class="stat-row"><span class="label">💬 SMS</span><span class="value" id="detail-sms"></span></div>
     <div class="detail-desc" id="detail-desc"></div>
+
+    <div class="section-title">Что входит</div>
+    <ul class="bullet-list" id="detail-includes"></ul>
+
+    <div class="guarantee-box">
+      <span class="icon">🛡</span>
+      <span>Гарантия: не подключили тариф — вернём деньги за подключение в течение 3 дней.</span>
+    </div>
+
+    <div class="section-title">Как подключить</div>
+    <ol class="steps-list">
+      <li>Нажимаете «Купить тариф» и оплачиваете подключение</li>
+      <li>Мы присылаем вам ссылку на подключение этого тарифа</li>
+      <li>Переходите по ссылке, указываете номер телефона и подтверждаете кодом из SMS</li>
+      <li>Тариф подключается в течение часа</li>
+    </ol>
+    <div class="note">❗️ Подключение доступно только на действующий номер Билайн.</div>
+
     <button class="buy-btn" id="buy-btn" onclick="buyTariff()">🟡 КУПИТЬ ЗА 1500 ₽</button>
   </div>
 
@@ -130,20 +187,23 @@
   // Тарифы Билайн — реальные, с mycompany.beeline.ru (те же данные, что и в
   // TARIFFS в bot.py — держите оба списка в синхроне при правках).
   // gb: число ГБ либо строка "безлимит". minutes/sms: число либо null, если
-  // оператор не показывает эту цифру для тарифа.
+  // оператор не показывает эту цифру для тарифа. priceAfter — цена после
+  // окончания скидочного периода (только у "Пробизнес" со скидкой 25-35%
+  // на первые 12 месяцев — со скриншотов видно оба числа); у остальных null,
+  // потому что скидка на них не показана и цена одна постоянная.
   const TARIFFS = [
-    { name: "Пробизнес 1.0 (600 мин)",  price: 229,  gb: "безлимит", minutes: 600,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
-    { name: "Пробизнес 1.0 (900 мин)",  price: 270,  gb: "безлимит", minutes: 900,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
-    { name: "Решение за 300",           price: 305,  gb: "безлимит", minutes: 500,  sms: 100,  short: "Безлимитный интернет по доступной цене" },
-    { name: "Пробизнес 3.0 (2000 мин)", price: 364,  gb: "безлимит", minutes: 2000, sms: 1000, short: "Скидка 35% на первые 12 месяцев" },
-    { name: "Решение за 400",           price: 407,  gb: 35,         minutes: 800,  sms: 300,  short: "35 ГБ плюс безлимитный интернет по России" },
-    { name: "Пробизнес 2.0 (1500 мин)", price: 460,  gb: "безлимит", minutes: 1500, sms: 500,  short: "Баланс интернета и звонков для бизнеса" },
-    { name: "Гибкий интернет 2.0",      price: 500,  gb: "безлимит", minutes: null, sms: null, short: "Безлимитный интернет, звонки на Билайн бесплатно" },
-    { name: "Решение за 550",           price: 559,  gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения" },
-    { name: "Пробизнес 3.0 (2500 мин)", price: 610,  gb: "безлимит", minutes: 2500, sms: 1000, short: "Для среднего бизнеса" },
-    { name: "Пробизнес 3.0 (3000 мин)", price: 715,  gb: "безлимит", minutes: 3000, sms: 1000, short: "Для активного бизнес-общения" },
-    { name: "Пробизнес 3.0 (5000 мин)", price: 1020, gb: "безлимит", minutes: 5000, sms: 1000, short: "Много минут для компании" },
-    { name: "Пробизнес 3.0 (6000 мин)", price: 3000, gb: "безлимит", minutes: 6000, sms: 2000, short: "Максимум минут и SMS" },
+    { name: "Пробизнес 1.0 (600 мин)",  price: 229,  priceAfter: 305,  gb: "безлимит", minutes: 600,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
+    { name: "Пробизнес 1.0 (900 мин)",  price: 270,  priceAfter: 360,  gb: "безлимит", minutes: 900,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
+    { name: "Решение за 300",           price: 305,  priceAfter: null, gb: "безлимит", minutes: 500,  sms: 100,  short: "Безлимитный интернет по доступной цене" },
+    { name: "Пробизнес 3.0 (2000 мин)", price: 364,  priceAfter: 560,  gb: "безлимит", minutes: 2000, sms: 1000, short: "Скидка 35% на первые 12 месяцев" },
+    { name: "Решение за 400",           price: 407,  priceAfter: null, gb: 35,         minutes: 800,  sms: 300,  short: "35 ГБ плюс безлимитный интернет по России" },
+    { name: "Пробизнес 2.0 (1500 мин)", price: 460,  priceAfter: null, gb: "безлимит", minutes: 1500, sms: 500,  short: "Баланс интернета и звонков для бизнеса" },
+    { name: "Гибкий интернет 2.0",      price: 500,  priceAfter: null, gb: "безлимит", minutes: null, sms: null, short: "Безлимитный интернет, звонки на Билайн бесплатно" },
+    { name: "Решение за 550",           price: 559,  priceAfter: null, gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения" },
+    { name: "Пробизнес 3.0 (2500 мин)", price: 610,  priceAfter: null, gb: "безлимит", minutes: 2500, sms: 1000, short: "Для среднего бизнеса" },
+    { name: "Пробизнес 3.0 (3000 мин)", price: 715,  priceAfter: null, gb: "безлимит", minutes: 3000, sms: 1000, short: "Для активного бизнес-общения" },
+    { name: "Пробизнес 3.0 (5000 мин)", price: 1020, priceAfter: null, gb: "безлимит", minutes: 5000, sms: 1000, short: "Много минут для компании" },
+    { name: "Пробизнес 3.0 (6000 мин)", price: 3000, priceAfter: null, gb: "безлимит", minutes: 6000, sms: 2000, short: "Максимум минут и SMS" },
   ];
 
   function fmtGb(gb) {
@@ -185,13 +245,27 @@
 
   function showDetail(index) {
     selectedTariff = TARIFFS[index];
-    document.getElementById("detail-name").textContent = "📌 " + selectedTariff.name.toUpperCase();
-    document.getElementById("detail-price").textContent = selectedTariff.price + " ₽/мес";
-    document.getElementById("detail-gb").textContent = fmtGb(selectedTariff.gb);
-    document.getElementById("detail-minutes").textContent = fmtMinutes(selectedTariff.minutes);
-    document.getElementById("detail-sms").textContent = fmtSms(selectedTariff.sms);
-    document.getElementById("detail-desc").textContent = selectedTariff.short + ".";
+    const t = selectedTariff;
+
+    document.getElementById("detail-name").textContent = "📌 " + t.name.toUpperCase();
+    document.getElementById("detail-price").textContent = t.priceAfter
+      ? t.price + " ₽ (1-й год) → " + t.priceAfter + " ₽"
+      : t.price + " ₽/мес";
+    document.getElementById("detail-gb").textContent = fmtGb(t.gb);
+    document.getElementById("detail-minutes").textContent = fmtMinutes(t.minutes);
+    document.getElementById("detail-sms").textContent = fmtSms(t.sms);
+    document.getElementById("detail-desc").textContent = t.short + ".";
     document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
+
+    // "Что входит" — только реально подтверждённые пункты по этому тарифу,
+    // ничего не придумываем сверху того, что видно в его данных.
+    const includes = [];
+    includes.push(t.minutes != null ? t.minutes + " минут по России" : "Звонки по России — без ограничений по минутам");
+    includes.push("Безлимитные звонки на номера Билайн");
+    includes.push(t.gb === "безлимит" ? "Безлимитный интернет" : t.gb + " ГБ интернета");
+    if (t.sms != null) includes.push(t.sms + " SMS");
+    if (t.priceAfter) includes.push("Скидка на абонентскую плату — первые 12 месяцев");
+    document.getElementById("detail-includes").innerHTML = includes.map(x => `<li>${x}</li>`).join("");
 
     document.getElementById("catalog-screen").classList.add("hidden");
     document.getElementById("detail-screen").classList.remove("hidden");
