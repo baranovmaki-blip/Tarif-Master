@@ -27,19 +27,126 @@
   .header .logo { font-size: 22px; font-weight: 800; color: var(--yellow); letter-spacing: 0.5px; }
   .header .subtitle { font-size: 13px; color: var(--gray); margin-top: 4px; }
 
-  .card {
-    background: var(--card-bg);
-    border: 1px solid #3a3a3a;
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
-    cursor: pointer;
-    transition: border-color 0.15s ease;
+  /* Карточка тарифа — жёлтая, с SIM-картой и ценником, как у конкурентов */
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 10px;
   }
-  .card:active { border-color: var(--yellow); }
-  .card .name { font-size: 17px; font-weight: 700; color: var(--white); }
-  .card .meta { font-size: 14px; color: var(--yellow); margin-top: 4px; font-weight: 600; }
-  .card .short { font-size: 13px; color: var(--gray); margin-top: 6px; }
+  .card-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+  .tariff-card {
+    position: relative;
+    background: linear-gradient(150deg, #FFE55C 0%, var(--yellow) 55%, #FFC400 100%);
+    border-radius: 20px;
+    padding: 14px 14px 64px;
+    min-height: 150px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.1s ease;
+  }
+  .tariff-card:active { transform: scale(0.98); }
+
+  .tariff-card .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(26,26,26,0.65);
+    text-transform: uppercase;
+  }
+  .tariff-card .name {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--black);
+    text-transform: uppercase;
+    line-height: 1.15;
+    margin-top: 2px;
+  }
+
+  .tariff-card .stats {
+    margin-top: 12px;
+    padding-left: 10px;
+    border-left: 3px solid rgba(26,26,26,0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .tariff-card .stat-line {
+    color: var(--black);
+    font-weight: 800;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+  .tariff-card .stat-line .unit {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-left: 2px;
+  }
+
+  /* Декоративная SIM-карта фоном в правом нижнем углу — чистый CSS, без
+     внешних картинок: тёмный прямоугольник со срезанным уголком + "чип". */
+  .tariff-card .sim-icon {
+    position: absolute;
+    right: 8px;
+    bottom: 30px;
+    width: 44px;
+    height: 58px;
+    background: var(--black);
+    border-radius: 6px;
+    clip-path: polygon(28% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 28%);
+    opacity: 0.92;
+    transform: rotate(-6deg);
+  }
+  .tariff-card .sim-icon::after {
+    content: "";
+    position: absolute;
+    top: 14px;
+    left: 8px;
+    width: 22px;
+    height: 15px;
+    border-radius: 3px;
+    background: linear-gradient(135deg, #F0D488, #C9A227);
+  }
+
+  .tariff-card .price-badge {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    background: var(--white);
+    border-radius: 12px;
+    padding: 5px 10px 6px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .tariff-card .price-badge .unit {
+    display: block;
+    font-size: 8px;
+    font-weight: 700;
+    color: #777;
+    letter-spacing: 0.5px;
+  }
+  .tariff-card .price-badge .value {
+    display: block;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--black);
+    line-height: 1.1;
+  }
+
+  .more-btn {
+    display: block;
+    width: 100%;
+    background: none;
+    border: 1.5px solid var(--yellow);
+    color: var(--yellow);
+    border-radius: 999px;
+    padding: 10px 0;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .more-btn:active { background: rgba(255,214,0,0.12); }
 
   .back-btn {
     display: inline-flex;
@@ -143,7 +250,7 @@
       <div class="logo">⚡ ТАРИФЫ БИЛАЙН</div>
       <div class="subtitle">Официальный партнёр</div>
     </div>
-    <div id="catalog-list"></div>
+    <div id="catalog-list" class="card-grid"></div>
   </div>
 
   <!-- ===== Экран 2: карточка тарифа ===== -->
@@ -234,19 +341,41 @@
 
   let selectedTariff = null;
 
+  function statLine(value, unit) {
+    return `<div class="stat-line">${value}<span class="unit">${unit}</span></div>`;
+  }
+
   function renderCatalog() {
     const list = document.getElementById("catalog-list");
     list.innerHTML = "";
     TARIFFS.forEach((t, i) => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.onclick = () => showDetail(i);
-      card.innerHTML = `
-        <div class="name">${t.name}</div>
-        <div class="meta">${t.price} ₽/мес · ${fmtGb(t.gb)}</div>
-        <div class="short">${t.short}</div>
+      // Строки характеристик — только реально известные для этого тарифа
+      // (как и в детальной карточке, ничего не додумываем).
+      let stats = statLine(t.gb === "безлимит" ? "∞" : t.gb, "гб");
+      if (t.minutes != null) stats += statLine(t.minutes, "минут");
+      if (t.sms != null) stats += statLine(t.sms, "sms");
+      if (t.minutes == null && t.sms == null) {
+        stats += `<div class="stat-line" style="font-size:12px;">Wi-Fi<span class="unit">бесплатно</span></div>`;
+      }
+
+      const wrap = document.createElement("div");
+      wrap.className = "card-wrap";
+      wrap.innerHTML = `
+        <div class="tariff-card">
+          <div class="label">Тариф</div>
+          <div class="name">${t.name}</div>
+          <div class="stats">${stats}</div>
+          <div class="sim-icon"></div>
+          <div class="price-badge">
+            <span class="unit">₽/мес</span>
+            <span class="value">${t.price}</span>
+          </div>
+        </div>
+        <button class="more-btn">Подробнее</button>
       `;
-      list.appendChild(card);
+      wrap.querySelector(".tariff-card").onclick = () => showDetail(i);
+      wrap.querySelector(".more-btn").onclick = () => showDetail(i);
+      list.appendChild(wrap);
     });
   }
 
