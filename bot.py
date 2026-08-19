@@ -136,6 +136,13 @@ CONNECTION_FEE_RUB = 1500
 # схеме через ЮKassa, без дополнительных правок.
 PROMO_FREE_UNTIL_DATE = date(2026, 9, 1)
 
+# Отправляется клиенту сразу после ссылки на подключение — и по авто-пути
+# (_finalize_paid_order), и при ручном /connect (_connect_order).
+TARIFF_CHANGE_TIMING_TEXT = (
+    "⏳ Смена тарифа обычно занимает от 20 минут до 3 рабочих дней — "
+    "если тариф применится не сразу, это нормально, просто подождите."
+)
+
 PAYMENT_CHECK_INTERVAL_SECONDS = 30       # как часто проверять все ожидающие платежи
 PAYMENT_REMINDER_DELAY_SECONDS = 30 * 60  # через сколько напомнить неоплатившему
 IDLE_NUDGE_DELAY_SECONDS = 3 * 60         # первое напоминание — через 3 минуты
@@ -1052,6 +1059,7 @@ async def _connect_order(context: ContextTypes.DEFAULT_TYPE, order_number: int, 
         chat_id=order["chat_id"],
         text=f"✅ Ссылка для подключения тарифа: {link}",
     )
+    await context.bot.send_message(chat_id=order["chat_id"], text=TARIFF_CHANGE_TIMING_TEXT)
     await _notify_status_change(context, order_number, old_status, "connected")
 
 
@@ -1328,6 +1336,7 @@ async def _finalize_paid_order(
         chat_id=order["chat_id"],
         text=f"✅ Ссылка для подключения тарифа: {link}",
     )
+    await context.bot.send_message(chat_id=order["chat_id"], text=TARIFF_CHANGE_TIMING_TEXT)
     await _notify_status_change(context, order_number, old_status2, "connected")
 
 
