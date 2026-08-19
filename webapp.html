@@ -47,6 +47,19 @@
   }
   .tariff-card:active { transform: scale(0.98); }
 
+  .hit-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--black);
+    color: var(--yellow);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 4px 8px;
+    border-radius: 999px;
+  }
+
   .tariff-card .label {
     font-size: 11px;
     font-weight: 700;
@@ -341,12 +354,12 @@
   // на первые 12 месяцев — со скриншотов видно оба числа); у остальных null,
   // потому что скидка на них не показана и цена одна постоянная.
   const TARIFFS = [
+    { name: "Пробизнес 2.0 (1500 мин)", price: 460,  priceAfter: null, gb: "безлимит", minutes: 1500, sms: 500,  short: "Баланс интернета и звонков для бизнеса", hit: true },
     { name: "Пробизнес 1.0 (600 мин)",  price: 229,  priceAfter: 305,  gb: "безлимит", minutes: 600,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
     { name: "Пробизнес 1.0 (900 мин)",  price: 270,  priceAfter: 360,  gb: "безлимит", minutes: 900,  sms: 300,  short: "Скидка 25% на первые 12 месяцев" },
     { name: "Решение за 300",           price: 305,  priceAfter: null, gb: "безлимит", minutes: 500,  sms: 100,  short: "Безлимитный интернет по доступной цене" },
     { name: "Пробизнес 3.0 (2000 мин)", price: 364,  priceAfter: 560,  gb: "безлимит", minutes: 2000, sms: 1000, short: "Скидка 35% на первые 12 месяцев" },
     { name: "Решение за 400",           price: 407,  priceAfter: null, gb: 35,         minutes: 800,  sms: 300,  short: "35 ГБ плюс безлимитный интернет по России" },
-    { name: "Пробизнес 2.0 (1500 мин)", price: 460,  priceAfter: null, gb: "безлимит", minutes: 1500, sms: 500,  short: "Баланс интернета и звонков для бизнеса" },
     { name: "Гибкий интернет 2.0",      price: 500,  priceAfter: null, gb: "безлимит", minutes: null, sms: null, short: "Безлимитный интернет, звонки на Билайн бесплатно" },
     { name: "Решение за 550",           price: 559,  priceAfter: null, gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения" },
     { name: "Пробизнес 3.0 (2500 мин)", price: 610,  priceAfter: null, gb: "безлимит", minutes: 2500, sms: 1000, short: "Для среднего бизнеса" },
@@ -397,6 +410,7 @@
       wrap.className = "card-wrap";
       wrap.innerHTML = `
         <div class="tariff-card">
+          ${t.hit ? '<div class="hit-badge">🔥 ХИТ</div>' : ""}
           <div class="label">Тариф</div>
           <div class="name">${t.name}</div>
           <div class="stats">${stats}</div>
