@@ -148,6 +148,33 @@
   }
   .more-btn:active { background: rgba(255,214,0,0.12); }
 
+  .footer {
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid #333;
+    text-align: center;
+  }
+  .manager-btn {
+    display: block;
+    width: 100%;
+    background: var(--yellow);
+    color: var(--black);
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .manager-btn:active { opacity: 0.85; }
+  .footer-phone {
+    display: block;
+    margin-top: 12px;
+    color: var(--gray);
+    font-size: 14px;
+    text-decoration: none;
+  }
+
   .back-btn {
     display: inline-flex;
     align-items: center;
@@ -251,6 +278,11 @@
       <div class="subtitle">Официальный партнёр</div>
     </div>
     <div id="catalog-list" class="card-grid"></div>
+
+    <div class="footer">
+      <button class="manager-btn" onclick="contactManager()">💬 Связаться с менеджером</button>
+      <a class="footer-phone" href="tel:+79309097777">📞 +7 (930) 909-77-77</a>
+    </div>
   </div>
 
   <!-- ===== Экран 2: карточка тарифа ===== -->
@@ -297,6 +329,8 @@
   // (совпадает с CONNECTION_FEE_RUB в bot.py). Сама цена тарифа — это то,
   // сколько клиент будет платить оператору ежемесячно, это другая величина.
   const CONNECTION_FEE = 1500;
+  // Тот же менеджер, что и в MANAGER_TELEGRAM_USERNAME в bot.py.
+  const MANAGER_USERNAME = "MinBar_Co";
 
   // Тарифы Билайн — реальные, с mycompany.beeline.ru (те же данные, что и в
   // TARIFFS в bot.py — держите оба списка в синхроне при правках).
@@ -428,6 +462,15 @@
       // Открыто вне Telegram (например, в обычном браузере при отладке) —
       // sendData недоступен, просто предупреждаем.
       alert("Откройте это приложение через кнопку в Telegram-боте.");
+    }
+  }
+
+  function contactManager() {
+    const url = "https://t.me/" + MANAGER_USERNAME;
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink(url);
+    } else {
+      window.open(url, "_blank");
     }
   }
 
