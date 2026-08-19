@@ -47,7 +47,14 @@ import aiohttp
 import anthropic
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    Update,
+    WebAppInfo,
+)
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -777,8 +784,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
 
     if WEBAPP_URL:
-        keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🟡 Открыть каталог тарифов", web_app=WebAppInfo(url=WEBAPP_URL))]]
+        # Важно: Telegram.WebApp.sendData() (то, чем WebApp передаёт выбор
+        # тарифа обратно боту) работает ТОЛЬКО для кнопок обычной клавиатуры
+        # (KeyboardButton), а не инлайн-кнопок — с InlineKeyboardButton клик
+        # в WebApp физически не долетает до бота. Поэтому здесь именно
+        # ReplyKeyboardMarkup, не InlineKeyboardMarkup.
+        keyboard = ReplyKeyboardMarkup(
+            [[KeyboardButton("🟡 Открыть каталог тарифов", web_app=WebAppInfo(url=WEBAPP_URL))]],
+            resize_keyboard=True,
         )
     else:
         # WEBAPP_URL ещё не настроен (см. README) — предупреждаем админа один
@@ -940,8 +953,11 @@ async def question_during_offer(update: Update, context: ContextTypes.DEFAULT_TY
 
     answer = get_ai_answer(text, operator)
     if WEBAPP_URL:
-        keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🟡 Открыть каталог тарифов", web_app=WebAppInfo(url=WEBAPP_URL))]]
+        # См. комментарий в start() — тут тоже обязательно ReplyKeyboardMarkup,
+        # не Inline, иначе sendData() из WebApp не дойдёт до бота.
+        keyboard = ReplyKeyboardMarkup(
+            [[KeyboardButton("🟡 Открыть каталог тарифов", web_app=WebAppInfo(url=WEBAPP_URL))]],
+            resize_keyboard=True,
         )
     else:
         keyboard = _HUMAN_BUTTON_KEYBOARD
