@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Тарифы Билайн</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --yellow: #FFD600;
+    --black: #1A1A1A;
+    --white: #FFFFFF;
+    --gray: #8a8a8a;
+    --card-bg: #262626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--black);
+    color: var(--white);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .container { padding: 16px; max-width: 480px; margin: 0 auto; }
+
+  .header { text-align: center; margin-bottom: 20px; }
+  .header .logo { font-size: 22px; font-weight: 800; color: var(--yellow); letter-spacing: 0.5px; }
+  .header .subtitle { font-size: 13px; color: var(--gray); margin-top: 4px; }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid #3a3a3a;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  .card:active { border-color: var(--yellow); }
+  .card .name { font-size: 17px; font-weight: 700; color: var(--white); }
+  .card .meta { font-size: 14px; color: var(--yellow); margin-top: 4px; font-weight: 600; }
+  .card .short { font-size: 13px; color: var(--gray); margin-top: 6px; }
+
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--yellow);
+    font-size: 15px;
+    font-weight: 600;
+    padding: 8px 0 16px;
+    cursor: pointer;
+  }
+
+  .detail-name {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--yellow);
+    margin-bottom: 16px;
+  }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #333;
+    font-size: 15px;
+  }
+  .stat-row .label { color: var(--gray); }
+  .stat-row .value { color: var(--white); font-weight: 600; }
+
+  .detail-desc {
+    margin: 16px 0 24px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #cfcfcf;
+  }
+
+  .buy-btn {
+    display: block;
+    width: 100%;
+    background: var(--yellow);
+    color: var(--black);
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .buy-btn:active { opacity: 0.85; }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ===== Экран 1: список тарифов ===== -->
+  <div id="catalog-screen">
+    <div class="header">
+      <div class="logo">⚡ ТАРИФЫ БИЛАЙН</div>
+      <div class="subtitle">Официальный партнёр</div>
+    </div>
+    <div id="catalog-list"></div>
+  </div>
+
+  <!-- ===== Экран 2: карточка тарифа ===== -->
+  <div id="detail-screen" class="hidden">
+    <button class="back-btn" onclick="showCatalog()">← Назад</button>
+    <div class="detail-name" id="detail-name"></div>
+    <div class="stat-row"><span class="label">💰 Цена</span><span class="value" id="detail-price"></span></div>
+    <div class="stat-row"><span class="label">📶 Интернет</span><span class="value" id="detail-gb"></span></div>
+    <div class="stat-row"><span class="label">📞 Минуты</span><span class="value" id="detail-minutes"></span></div>
+    <div class="stat-row"><span class="label">💬 SMS</span><span class="value" id="detail-sms"></span></div>
+    <div class="detail-desc" id="detail-desc"></div>
+    <button class="buy-btn" id="buy-btn" onclick="buyTariff()">🟡 КУПИТЬ ЗА 1500 ₽</button>
+  </div>
+
+</div>
+
+<script>
+  // Плата за подключение — фиксированная, одна и та же для любого тарифа
+  // (совпадает с CONNECTION_FEE_RUB в bot.py). Сама цена тарифа — это то,
+  // сколько клиент будет платить оператору ежемесячно, это другая величина.
+  const CONNECTION_FEE = 1500;
+
+  // Тарифы Билайн — только реальные, зашиты прямо в код (как и просили).
+  const TARIFFS = [
+    { name: "Всё за 350",    price: 350,  gb: 30, minutes: 600,  sms: 300, short: "Для интернет-серфинга и звонков" },
+    { name: "Близкие люди",  price: 400,  gb: 20, minutes: 1000, sms: 0,   short: "Для звонков на номера Билайн" },
+    { name: "Билайн 0",      price: 0,    gb: 1,  minutes: 0,    sms: 0,   short: "Для тех, кто почти не пользуется связью" },
+    { name: "Мои правила",   price: 500,  gb: 40, minutes: 800,  sms: 0,   short: "Свой набор минут и гигабайт" },
+    { name: "Проще",         price: 450,  gb: 15, minutes: 500,  sms: 0,   short: "Базовый тариф" },
+    { name: "Семейный",      price: 700,  gb: 50, minutes: 1500, sms: 0,   short: "Для всей семьи" },
+    { name: "Корпоративный", price: 600,  gb: 30, minutes: 2000, sms: 0,   short: "Для бизнеса" },
+    { name: "VIP-тариф",     price: 1200, gb: 80, minutes: 3000, sms: 0,   short: "Максимум возможностей" },
+  ];
+
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    // Не все версии клиента поддерживают эти вызовы — не должны ломать страницу.
+    try { tg.setHeaderColor("#1A1A1A"); } catch (e) {}
+    try { tg.setBackgroundColor("#1A1A1A"); } catch (e) {}
+  }
+
+  let selectedTariff = null;
+
+  function renderCatalog() {
+    const list = document.getElementById("catalog-list");
+    list.innerHTML = "";
+    TARIFFS.forEach((t, i) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.onclick = () => showDetail(i);
+      card.innerHTML = `
+        <div class="name">${t.name}</div>
+        <div class="meta">${t.price} ₽/мес · ${t.gb} ГБ</div>
+        <div class="short">${t.short}</div>
+      `;
+      list.appendChild(card);
+    });
+  }
+
+  function showDetail(index) {
+    selectedTariff = TARIFFS[index];
+    document.getElementById("detail-name").textContent = "📌 " + selectedTariff.name.toUpperCase();
+    document.getElementById("detail-price").textContent = selectedTariff.price + " ₽/мес";
+    document.getElementById("detail-gb").textContent = selectedTariff.gb + " ГБ";
+    document.getElementById("detail-minutes").textContent = selectedTariff.minutes + " минут";
+    document.getElementById("detail-sms").textContent = selectedTariff.sms + " SMS";
+    document.getElementById("detail-desc").textContent = selectedTariff.short + ".";
+    document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
+
+    document.getElementById("catalog-screen").classList.add("hidden");
+    document.getElementById("detail-screen").classList.remove("hidden");
+    if (tg) tg.BackButton.show();
+  }
+
+  function showCatalog() {
+    document.getElementById("detail-screen").classList.add("hidden");
+    document.getElementById("catalog-screen").classList.remove("hidden");
+    if (tg) tg.BackButton.hide();
+  }
+
+  function buyTariff() {
+    if (!selectedTariff) return;
+    if (tg) {
+      tg.sendData(JSON.stringify({
+        action: "buy_tariff",
+        tariff: selectedTariff.name,
+        price: String(CONNECTION_FEE),
+      }));
+      tg.close();
+    } else {
+      // Открыто вне Telegram (например, в обычном браузере при отладке) —
+      // sendData недоступен, просто предупреждаем.
+      alert("Откройте это приложение через кнопку в Telegram-боте.");
+    }
+  }
+
+  if (tg) tg.BackButton.onClick(showCatalog);
+
+  renderCatalog();
+</script>
+
+</body>
+</html>

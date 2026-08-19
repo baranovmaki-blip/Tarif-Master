@@ -1,23 +1,29 @@
 """
-Тариф-Мастер — гибридный Telegram-бот для подбора и продажи подключения
-тарифов сотовой связи, с простой CRM прямо в Telegram. Бот ведёт клиента
-сам, но на решающих этапах подключает живого менеджера (администратора):
+Тариф-Мастер — Telegram-бот с каталогом тарифов Билайн внутри WebApp
+(мини-приложения), с простой CRM прямо в Telegram. Никаких вопросов
+клиенту — он сам листает тарифы в WebApp, а на решающих этапах бот может
+подключить менеджера:
 
-  /start -> заводит заказ (уникальный номер #1001, #1002...) -> продукт +
-     тарифы + кнопки, без единого вопроса клиенту -> клиент либо платит сам
-     (кнопка "Оплатить", ЮKassa, фоновая проверка), либо в любой момент
-     зовёт менеджера (кнопка "Связаться с менеджером"), либо бот сам
-     предлагает менеджера при возражении ("дорого", "подумаю" и т.п.), либо
-     просто "засыпает" — тогда бот сам напоминает о себе, повторяя с
-     растущим интервалом, пока клиент не ответит.
-  -> после оплаты бот НЕ подключает тариф автоматически — уведомляет
-     администратора с кнопками "Подключить"/"Отказать", и только его
-     решение реально завершает сделку. Это и есть "дожим" клиента вручную.
+  /start -> заводит заказ (уникальный номер #1001, #1002...) -> кнопка
+     "Открыть каталог тарифов" (открывает webapp.html, см. WEBAPP_URL) ->
+     клиент выбирает тариф и жмёт "Купить" внутри WebApp -> WebApp
+     закрывается и передаёт выбор боту (Telegram.WebApp.sendData) ->
+     web_app_data_received спрашивает подтверждение прямо в чате ->
+     "Да, подключить" (ЮKassa, фоновая проверка оплаты). В любой момент
+     клиент может позвать менеджера сам, бот сам предложит менеджера при
+     возражении ("дорого", "подумаю" и т.п.), а если клиент "завис" — бот
+     сам напоминает о себе с растущим интервалом, пока не ответит.
+  -> после оплаты бот САМ запрашивает ссылку на подключение у Билайна
+     (mycompany.beeline.ru + IMAP) и пересылает клиенту — без ручных команд.
+     Если автоматика не справилась — уведомляет администратора с кнопками
+     "Подключить вручную"/"Отказать" как запасной путь.
 
 Все заказы хранятся в словаре orders (см. ORDERS_FILE) и переживают
 перезапуск бота — статусы: new / paid / connected / declined.
 
 Запуск: python bot.py
+Каталог тарифов (внешний вид) — в webapp.html рядом с этим файлом; его
+нужно разместить на публичном https-адресе, см. README.md.
 Зависимости и деплой, админ-команды — см. README.md рядом с этим файлом.
 """
 
@@ -40,7 +46,7 @@ import aiohttp
 import anthropic
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -75,6 +81,11 @@ YOOKASSA_API_URL = "https://api.yookassa.ru/v3/payments"
 # Telegram-username менеджера (без @), куда бот отправляет клиента при
 # нажатии "Связаться с менеджером" — открывается личный чат напрямую.
 MANAGER_TELEGRAM_USERNAME = os.environ.get("MANAGER_TELEGRAM_USERNAME", "MinBar_Co")
+
+# Публичный HTTPS-адрес, где реально размещён webapp.html (Telegram WebApp
+# ОБЯЗАН открываться по https — локальный файл или http не подойдут).
+# Пока не задан — кнопка "Открыть каталог тарифов" не покажется, см. main().
+WEBAPP_URL = os.environ.get("WEBAPP_URL", "")
 
 # Файл, в который сохраняются все заказы (CRM), чтобы не терять их при
 # перезапуске бота.
@@ -137,14 +148,64 @@ TARIFFS = {
             "price": 350,
             "minutes": 600,
             "gb": 30,
-            "tagline": "🔥 Хит продаж",
+            "sms": 300,
+            "short": "Для интернет-сёрфинга и звонков",
         },
         {
             "name": "Близкие люди",
             "price": 400,
             "minutes": 1000,
             "gb": 20,
-            "tagline": "💛 Для тех, кто много созванивается",
+            "sms": 0,
+            "short": "Для звонков на номера Билайн",
+        },
+        {
+            "name": "Билайн 0",
+            "price": 0,
+            "minutes": 0,
+            "gb": 1,
+            "sms": 0,
+            "short": "Для тех, кто почти не пользуется связью",
+        },
+        {
+            "name": "Мои правила",
+            "price": 500,
+            "minutes": 800,
+            "gb": 40,
+            "sms": 0,
+            "short": "Свой набор минут и гигабайт",
+        },
+        {
+            "name": "Проще",
+            "price": 450,
+            "minutes": 500,
+            "gb": 15,
+            "sms": 0,
+            "short": "Базовый тариф",
+        },
+        {
+            "name": "Семейный",
+            "price": 700,
+            "minutes": 1500,
+            "gb": 50,
+            "sms": 0,
+            "short": "Для всей семьи",
+        },
+        {
+            "name": "Корпоративный",
+            "price": 600,
+            "minutes": 2000,
+            "gb": 30,
+            "sms": 0,
+            "short": "Для бизнеса",
+        },
+        {
+            "name": "VIP-тариф",
+            "price": 1200,
+            "minutes": 3000,
+            "gb": 80,
+            "sms": 0,
+            "short": "Максимум возможностей",
         },
     ],
     # "МТС": [
@@ -281,17 +342,13 @@ async def _update_order_status(
 
 
 # ===== Состояния диалога (ConversationHandler) =====
-SHOWING_OFFER = 0
+# Каталог и карточки тарифов теперь живут внутри WebApp (webapp.html) —
+# /start только открывает его кнопкой. Дальше клиент листает тарифы уже в
+# мини-приложении, а не в чате; в чат он возвращается один раз — с выбором
+# тарифа (см. web_app_data_received) — весь путь укладывается в одно
+# состояние ConversationHandler.
+BROWSING = 0
 
-_OFFER_KEYBOARD = InlineKeyboardMarkup(
-    [
-        [InlineKeyboardButton("💬 Связаться с менеджером", callback_data="human")],
-        [
-            InlineKeyboardButton(f"💳 Оплатить {CONNECTION_FEE_RUB} ₽", callback_data="pay_1500"),
-            InlineKeyboardButton("❌ Отказаться", callback_data="cancel_pay"),
-        ],
-    ]
-)
 _HUMAN_BUTTON_KEYBOARD = InlineKeyboardMarkup(
     [[InlineKeyboardButton("💬 Связаться с менеджером", callback_data="human")]]
 )
@@ -623,37 +680,17 @@ async def auto_register_tariff(context: ContextTypes.DEFAULT_TYPE, order_number:
 # ==========================================================================
 # === ОБРАБОТЧИКИ ДИАЛОГА С КЛИЕНТОМ ===
 # ==========================================================================
-def _format_tariffs_text() -> str:
-    """HTML-разметка (жирный шрифт) — единственное реальное выделение,
-    доступное в обычном тексте Telegram-сообщения."""
-    blocks = []
-    for t in TARIFFS[DEFAULT_OPERATOR]:
-        gb_text = "безлимитный интернет" if t["gb"] == "безлимит" else f"{t['gb']} ГБ"
-        minutes_text = f"{t['minutes']} мин" if t["minutes"] is not None else ""
-        details = " + ".join(x for x in (minutes_text, gb_text) if x)
-        tagline = t.get("tagline", "")
-
-        block = f"🟡 <b>{t['name']}</b> — <b>{t['price']} ₽/мес</b>"
-        if tagline:
-            block += f"\n{tagline}"
-        block += f"\n{details}"
-        blocks.append(block)
-
-    return "\n\n".join(blocks)
-
-
-HOW_IT_WORKS_TEXT = (
-    "📋 <b>Как происходит подключение:</b>\n"
-    "1️⃣ Мы присылаем вам ссылку на подключение непубличного тарифа\n"
-    "2️⃣ Переходите по ссылке и указываете номер телефона\n"
-    "3️⃣ На указанный номер приходит код подтверждения\n"
-    "4️⃣ Готово — тариф подключается в течение 1 часа"
+_CATALOG_INTRO_TEXT = (
+    "📱 <b>ТАРИФЫ БИЛАЙН</b>\n\n"
+    "Подключаем выгодные тарифы. Официальный партнёр.\n\n"
+    "👇 Откройте каталог и выберите тариф:"
 )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Один экран: продукт + тарифы + как это работает + кнопки. Никаких вопросов клиенту.
-    Заодно заводит новый заказ в CRM (orders) с уникальным номером."""
+    """Заводит заказ в CRM и открывает кнопку WebApp с каталогом тарифов —
+    сам список и карточки теперь внутри мини-приложения (webapp.html), не в
+    чате; никаких вопросов клиенту, тариф выбирает он сам."""
     context.user_data.clear()
     context.user_data["operator"] = DEFAULT_OPERATOR  # пока только Билайн — шаг выбора оператора убран
 
@@ -664,8 +701,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "user_id": user.id,
         "chat_id": update.effective_chat.id,
         "name": user.full_name,
-        # Бот не задаёт вопросов клиенту (включая телефон/тариф) — это
-        # уточняет менеджер в переписке при "Связаться с менеджером" или после оплаты.
+        # Телефон и тариф не спрашиваем вопросами — тариф проставится, когда
+        # клиент выберет его в WebApp и нажмёт "Купить" (см. web_app_data_received);
+        # телефон уточняет менеджер или форма подключения после оплаты.
         "phone": "не указан",
         "operator": DEFAULT_OPERATOR,
         "tariff": "уточняется у клиента",
@@ -686,16 +724,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         f"🆕 Новый заказ #{order_number}\n👤 Клиент: {user.full_name} (@{user.username or 'без username'}, id {user.id})",
     )
 
+    if WEBAPP_URL:
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🟡 Открыть каталог тарифов", web_app=WebAppInfo(url=WEBAPP_URL))]]
+        )
+    else:
+        # WEBAPP_URL ещё не настроен (см. README) — предупреждаем админа один
+        # раз за сессию и не показываем клиенту нерабочую кнопку.
+        logger.warning("WEBAPP_URL не задан — кнопка каталога не будет показана клиенту.")
+        keyboard = _HUMAN_BUTTON_KEYBOARD
+
     await update.message.reply_text(
-        "🟡⚫ <b>Тариф-Мастер — непубличные тарифы Билайн</b>\n\n"
-        "Мы знаем тарифы, которых нет в открытой продаже — экономия "
-        "<b>до 90%</b> от того, что вы платите сейчас. Подключаем удалённо, "
-        "без визита в салон, буквально в пару кликов.\n\n"
-        + _format_tariffs_text() +
-        "\n\n" + HOW_IT_WORKS_TEXT +
-        "\n\n🔥 Готовы подключиться прямо сейчас?",
+        _CATALOG_INTRO_TEXT,
         parse_mode="HTML",
-        reply_markup=_OFFER_KEYBOARD,
+        reply_markup=keyboard,
     )
 
     # Если клиент "завис" и 3 минуты не жмёт ни одну кнопку — сами напомним о себе,
@@ -713,11 +755,39 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         name=f"idle_{user.id}",
     )
 
-    return SHOWING_OFFER
+    return BROWSING
+
+
+async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """WebApp закрылся и передал выбор клиента (Telegram.WebApp.sendData) —
+    запускаем тот же диалог оплаты, что был раньше, только без инлайн-каталога."""
+    try:
+        payload = json.loads(update.effective_message.web_app_data.data)
+        tariff_name = payload["tariff"]
+    except (ValueError, KeyError, AttributeError):
+        await update.message.reply_text("Не разобрал выбор — откройте каталог ещё раз и выберите тариф.")
+        return BROWSING
+
+    tariffs = TARIFFS[DEFAULT_OPERATOR]
+    tariff = next((t for t in tariffs if t["name"] == tariff_name), None)
+    if tariff is None:
+        await update.message.reply_text("Такого тарифа не нашёл — откройте каталог ещё раз.")
+        return BROWSING
+
+    context.user_data["tariff_index"] = tariffs.index(tariff)
+
+    confirm_keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(f"✅ Да, подключить за {CONNECTION_FEE_RUB} ₽", callback_data="pay_1500")]]
+    )
+    await update.message.reply_text(
+        f"Вы выбрали тариф «{tariff['name']}». Подключить?",
+        reply_markup=confirm_keyboard,
+    )
+    return BROWSING
 
 
 async def pay_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Клиент нажал «Оплатить» — создаём реальный платёж в ЮKassa."""
+    """Клиент нажал «Подключить» на карточке тарифа — создаём реальный платёж в ЮKassa."""
     query = update.callback_query
     await query.answer()
 
@@ -725,16 +795,27 @@ async def pay_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE)
     _cancel_job(context, f"idle_{user.id}")
 
     order_number = context.user_data.get("order_number")
-    operator = context.user_data.get("operator", DEFAULT_OPERATOR)
-    description = f"Тариф-Мастер — подключение тарифа {operator}, заказ #{order_number}"
+    tariff_index = context.user_data.get("tariff_index")
+    tariffs = TARIFFS[DEFAULT_OPERATOR]
+    tariff_name = tariffs[tariff_index]["name"] if tariff_index is not None else "уточняется у клиента"
+
+    if order_number in orders:
+        orders[order_number]["tariff"] = tariff_name
+        _save_orders()
+        await send_to_google_sheets(context, order_number)
+
+    description = f"Тариф-Мастер — подключение тарифа «{tariff_name}» (Билайн), заказ #{order_number}"
 
     try:
         payment_id, confirmation_url = await create_yookassa_payment(CONNECTION_FEE_RUB, description)
     except Exception:
+        # Даже если оплата онлайн не собралась — менеджер остаётся рабочим
+        # путём подключения, клиент не должен упереться в тупик.
         logger.exception("Не удалось создать платёж в ЮKassa")
         await query.edit_message_text(
-            "Не получилось сформировать ссылку на оплату — попробуйте ещё раз чуть позже "
-            "или напишите /start, чтобы начать заново.",
+            f"Для подключения тарифа «{tariff_name}» напишите нашему менеджеру:\n"
+            f"@{MANAGER_TELEGRAM_USERNAME}\n\n"
+            "Оплата онлайн сейчас недоступна — сообщите об этом менеджеру."
         )
         await notify_admins(context, f"⚠️ Ошибка создания платежа в ЮKassa по заказу #{order_number}")
         return ConversationHandler.END
@@ -752,29 +833,11 @@ async def pay_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
     await query.edit_message_text(
-        f"Ссылка на оплату: {confirmation_url}\n\n"
+        f"Для подключения тарифа «{tariff_name}» напишите нашему менеджеру:\n"
+        f"@{MANAGER_TELEGRAM_USERNAME}\n\n"
+        f"Или оплатите онлайн: {confirmation_url}\n\n"
         "После оплаты тариф будет подключён автоматически."
     )
-    return ConversationHandler.END
-
-
-async def cancel_pay_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-
-    user = update.effective_user
-    _cancel_job(context, f"idle_{user.id}")
-
-    order_number = context.user_data.get("order_number")
-    if order_number in orders:
-        old_status = await _update_order_status(context, order_number, "declined")
-        await _notify_status_change(context, order_number, old_status, "declined")
-
-    await query.edit_message_text(
-        "Понимаю, спасибо за уделённое время! Если передумаете — просто напишите /start."
-    )
-
-    context.user_data.clear()
     return ConversationHandler.END
 
 
@@ -804,7 +867,7 @@ async def human_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
         ),
         reply_markup=manager_link_keyboard,
     )
-    return SHOWING_OFFER
+    return BROWSING
 
 
 async def question_during_offer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -818,11 +881,17 @@ async def question_during_offer(update: Update, context: ContextTypes.DEFAULT_TY
             "который ответит на все вопросы?",
             reply_markup=_HUMAN_CONFIRM_KEYBOARD,
         )
-        return SHOWING_OFFER
+        return BROWSING
 
     answer = get_ai_answer(text, operator)
-    await update.message.reply_text(answer, reply_markup=_OFFER_KEYBOARD)
-    return SHOWING_OFFER
+    if WEBAPP_URL:
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🟡 Открыть каталог тарифов", web_app=WebAppInfo(url=WEBAPP_URL))]]
+        )
+    else:
+        keyboard = _HUMAN_BUTTON_KEYBOARD
+    await update.message.reply_text(answer, reply_markup=keyboard)
+    return BROWSING
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -1228,7 +1297,7 @@ async def idle_nudge_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     следующее напоминание с увеличенным интервалом (см. IDLE_NUDGE_STEP_SECONDS).
     Цепочка повторяется, пока клиент не нажмёт любую кнопку — это отменяет job
     по имени f"idle_{user_id}" (см. _cancel_job в pay_button_pressed,
-    cancel_pay_pressed, human_button_pressed)."""
+    human_button_pressed)."""
     data = context.job.data
     await context.bot.send_message(
         chat_id=data["chat_id"],
@@ -1259,15 +1328,17 @@ async def idle_nudge_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 # виден на пустом экране чата и в профиле. Настраивается через Bot API
 # (set_my_description/set_my_short_description), поэтому применяется
 # автоматически при каждом запуске — вручную через @BotFather делать не нужно.
+# Ограничение Telegram: short description — не больше 120 символов (иначе
+# set_my_short_description падает с ошибкой) — поэтому здесь версия короче,
+# чем в FULL_DESCRIPTION (лимит 512), где помещается весь текст полностью.
 SHORT_DESCRIPTION = (
-    "🟡 Подключаем непубличные тарифы Билайн со скидкой до 90%. Жмите Start!"
+    "⚡️ Тарифы Билайн для своих. Официальные партнёры. Жмите Start и выбирайте тариф!"
 )
 FULL_DESCRIPTION = (
-    "🟡⚫ Непубличные тарифы Билайн\n\n"
-    "Мы знаем тарифы, которых нет в открытой продаже — с экономией до 90% от того, "
-    "что вы платите сейчас.\n\n"
-    "Жмите Start, выберите тариф — и мы подключим его удалённо, без визита в салон.\n\n"
-    "👇 Начните прямо сейчас"
+    "⚡️ Тарифы Билайн для своих\n\n"
+    "Мы — официальные партнёры Билайн. Подключаем тарифы, которых нет в приложении, "
+    "прямо здесь, в Telegram.\n\n"
+    "▶️ Нажмите Start и выберите тариф из списка."
 )
 
 
@@ -1298,6 +1369,11 @@ def main() -> None:
             "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY не заданы — кнопка «Оплатить» "
             "не сможет создать реальный платёж, пока вы их не впишете."
         )
+    if not WEBAPP_URL:
+        logger.warning(
+            "WEBAPP_URL не задан — кнопка «Открыть каталог тарифов» не покажется клиенту "
+            "(нужен настоящий https-адрес, где размещён webapp.html, см. README)."
+        )
 
     _load_orders()
 
@@ -1306,9 +1382,9 @@ def main() -> None:
     conversation = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            SHOWING_OFFER: [
+            BROWSING: [
+                MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_received),
                 CallbackQueryHandler(pay_button_pressed, pattern="^pay_1500$"),
-                CallbackQueryHandler(cancel_pay_pressed, pattern="^cancel_pay$"),
                 CallbackQueryHandler(human_button_pressed, pattern="^human$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, question_during_offer),
             ],
