@@ -143,6 +143,10 @@ TARIFF_CHANGE_TIMING_TEXT = (
     "если тариф применится не сразу, это нормально, просто подождите."
 )
 
+# Через сколько после подключения просить чаевые — "где-то час-два".
+TIPS_MESSAGE_DELAY_SECONDS = 90 * 60
+TIPS_URL = "https://tips.tips/000480421"
+
 PAYMENT_CHECK_INTERVAL_SECONDS = 30       # как часто проверять все ожидающие платежи
 PAYMENT_REMINDER_DELAY_SECONDS = 30 * 60  # через сколько напомнить неоплатившему
 IDLE_NUDGE_DELAY_SECONDS = 3 * 60         # первое напоминание — через 3 минуты
@@ -1060,6 +1064,12 @@ async def _connect_order(context: ContextTypes.DEFAULT_TYPE, order_number: int, 
         text=f"✅ Ссылка для подключения тарифа: {link}",
     )
     await context.bot.send_message(chat_id=order["chat_id"], text=TARIFF_CHANGE_TIMING_TEXT)
+    context.job_queue.run_once(
+        send_tips_message_job,
+        when=TIPS_MESSAGE_DELAY_SECONDS,
+        data={"chat_id": order["chat_id"]},
+        name=f"tips_{order_number}",
+    )
     await _notify_status_change(context, order_number, old_status, "connected")
 
 
@@ -1337,6 +1347,12 @@ async def _finalize_paid_order(
         text=f"✅ Ссылка для подключения тарифа: {link}",
     )
     await context.bot.send_message(chat_id=order["chat_id"], text=TARIFF_CHANGE_TIMING_TEXT)
+    context.job_queue.run_once(
+        send_tips_message_job,
+        when=TIPS_MESSAGE_DELAY_SECONDS,
+        data={"chat_id": order["chat_id"]},
+        name=f"tips_{order_number}",
+    )
     await _notify_status_change(context, order_number, old_status2, "connected")
 
 
@@ -1362,6 +1378,18 @@ async def check_pending_payments_job(context: ContextTypes.DEFAULT_TYPE) -> None
             order["payment_id"] = None  # можно будет попробовать оплатить заново
             _save_orders()
             logger.info("Платёж по заказу #%s отменён/истёк", order_number)
+
+
+async def send_tips_message_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Разовое сообщение с просьбой оставить чаевые — через TIPS_MESSAGE_DELAY_SECONDS
+    после того, как клиенту ушла ссылка на подключение тарифа."""
+    data = context.job.data
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("💛 Оставить чаевые", url=TIPS_URL)]])
+    await context.bot.send_message(
+        chat_id=data["chat_id"],
+        text="Понравился наш бот? Если да — можете оставить чаевые, будем очень благодарны 💛",
+        reply_markup=keyboard,
+    )
 
 
 async def remind_payment_job(context: ContextTypes.DEFAULT_TYPE) -> None:
