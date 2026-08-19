@@ -124,6 +124,11 @@ CONFIRMATION_EMAIL_POLL_INTERVAL_SECONDS = 5  # как часто перепро
 CLAUDE_MODEL = "claude-opus-5"
 CONNECTION_FEE_RUB = 1500
 
+# Акция "бесплатное подключение" — та же дата зашита в webapp.html
+# (PROMO_FREE_UNTIL). После этой даты бот сам вернётся к обычной платной
+# схеме через ЮKassa, без дополнительных правок.
+PROMO_FREE_UNTIL_DATE = date(2026, 9, 1)
+
 PAYMENT_CHECK_INTERVAL_SECONDS = 30       # как часто проверять все ожидающие платежи
 PAYMENT_REMINDER_DELAY_SECONDS = 30 * 60  # через сколько напомнить неоплатившему
 IDLE_NUDGE_DELAY_SECONDS = 3 * 60         # первое напоминание — через 3 минуты
@@ -472,9 +477,14 @@ def _tariffs_catalog_for_prompt() -> str:
 
 def get_ai_answer(question: str, operator: str) -> str:
     """Ответ на произвольный вопрос клиента (например «Какие условия?», «А что по Пробизнес 2.0?»)."""
+    if date.today() < PROMO_FREE_UNTIL_DATE:
+        price_text = f"бесплатно по акции (до {PROMO_FREE_UNTIL_DATE.strftime('%d.%m.%Y')})"
+    else:
+        price_text = f"{CONNECTION_FEE_RUB} ₽ разово"
+
     fallback = (
-        "Спасибо за вопрос! Подключение занимает немного времени и стоит "
-        f"{CONNECTION_FEE_RUB} ₽ разово. Нажмите «Оплатить», чтобы оформить, "
+        f"Спасибо за вопрос! Подключение занимает немного времени и стоит "
+        f"{price_text}. Нажмите «Оплатить», чтобы оформить, "
         "или уточните что-то ещё."
     )
 
@@ -486,7 +496,7 @@ def get_ai_answer(question: str, operator: str) -> str:
         "Ты — консультант компании «Тариф-Мастер», помогаешь клиентам подбирать и "
         "подключать тарифы сотовой связи. Отвечай кратко (2-3 предложения), по-русски, "
         "дружелюбно, с маркетинговым напором (это непубличные тарифы, экономия до 90%). "
-        f"Факты: подключение стоит {CONNECTION_FEE_RUB} ₽ разово, делается удалённо, "
+        f"Факты: подключение стоит {price_text}, делается удалённо, "
         f"без визита в салон. Доступные тарифы {operator}:\n{_tariffs_catalog_for_prompt()}\n\n"
         "Как происходит подключение (если спросят) — ровно в этом порядке: "
         "1) мы присылаем ссылку на подключение непубличного тарифа; "
@@ -802,8 +812,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """WebApp закрылся и передал выбор клиента (Telegram.WebApp.sendData) —
-    клиент уже подтвердил покупку кнопкой "Купить" внутри WebApp, поэтому
-    сразу создаём платёж в ЮKassa, без лишнего повторного подтверждения в чате."""
+    клиент уже подтвердил покупку кнопкой внутри WebApp. Пока действует акция
+    (см. PROMO_FREE_UNTIL_DATE) — подключаем сразу бесплатно, без ЮKassa;
+    после даты акции сама собой возвращается обычная платная схема."""
     try:
         payload = json.loads(update.effective_message.web_app_data.data)
         tariff_name = payload["tariff"]
@@ -821,6 +832,27 @@ async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TY
     _cancel_job(context, f"idle_{user.id}")
 
     order_number = context.user_data.get("order_number")
+
+    if date.today() < PROMO_FREE_UNTIL_DATE:
+        # Акция: подключение бесплатное — без ЮKassa, сразу идём получать
+        # ссылку у Билайна (тот же путь, что и после реальной оплаты).
+        if order_number in orders:
+            orders[order_number]["tariff"] = tariff["name"]
+            orders[order_number]["price"] = 0
+            _save_orders()
+
+        await _finalize_paid_order(
+            context,
+            order_number,
+            intro_text=(
+                f"🎉 Тариф «{tariff['name']}» подключаем бесплатно по акции "
+                f"(до {PROMO_FREE_UNTIL_DATE.strftime('%d.%m.%Y')})!\n"
+                "Получаю для вас ссылку на подключение — это может занять до минуты..."
+            ),
+        )
+        return ConversationHandler.END
+
+    # --- Акция закончилась — обычная платная схема через ЮKassa ---
     if order_number in orders:
         orders[order_number]["tariff"] = tariff["name"]
         _save_orders()
@@ -1227,18 +1259,26 @@ async def weekly_report_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 # ==========================================================================
 # === ФОНОВЫЕ ЗАДАЧИ (оплата — каждые 30 сек, напоминания — разово) ===
 # ==========================================================================
-async def _finalize_paid_order(context: ContextTypes.DEFAULT_TYPE, order_number: int) -> None:
-    """Оплата подтверждена — бот сразу сам запрашивает ссылку у Билайна и
+async def _finalize_paid_order(
+    context: ContextTypes.DEFAULT_TYPE,
+    order_number: int,
+    *,
+    intro_text: str | None = None,
+) -> None:
+    """Оплата подтверждена (или подключение бесплатное по акции — см.
+    PROMO_FREE_UNTIL_DATE) — бот сразу сам запрашивает ссылку у Билайна и
     пересылает клиенту, без ручного /connect. Если автоматика не смогла
     (сайт/почта не сработали) — auto_register_tariff уже объяснила причину
     админам, а заказ остаётся в статусе "paid": можно подключить вручную
-    кнопкой или командой /connect (запасной вариант, а не основной путь)."""
+    кнопкой или командой /connect (запасной вариант, а не основной путь).
+    intro_text — своя первая фраза (например, для бесплатной акции вместо
+    "Оплата прошла успешно"); по умолчанию — обычный текст про оплату."""
     order = orders[order_number]
     old_status = await _update_order_status(context, order_number, "paid", timestamp_field="paid_at")
 
     await context.bot.send_message(
         chat_id=order["chat_id"],
-        text=(
+        text=intro_text or (
             "✅ Оплата прошла успешно!\n"
             "Получаю для вас ссылку на подключение — это может занять до минуты..."
         ),

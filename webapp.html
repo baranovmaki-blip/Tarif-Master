@@ -316,6 +316,14 @@
   }
   .buy-btn:active { opacity: 0.85; }
 
+  .promo-note {
+    text-align: center;
+    font-size: 12px;
+    color: var(--yellow);
+    font-weight: 600;
+    margin-top: 8px;
+  }
+
   .hidden { display: none; }
 </style>
 </head>
@@ -374,6 +382,7 @@
     </div>
 
     <button class="buy-btn" id="buy-btn" onclick="buyTariff()">🟡 КУПИТЬ ЗА 1500 ₽</button>
+    <div class="promo-note hidden" id="promo-note">Акция действует до 1 сентября</div>
   </div>
 
 </div>
@@ -385,6 +394,11 @@
   const CONNECTION_FEE = 1500;
   // Тот же менеджер, что и в MANAGER_TELEGRAM_USERNAME в bot.py.
   const MANAGER_USERNAME = "MinBar_Co";
+
+  // Акция "бесплатное подключение" — та же дата, что и PROMO_FREE_UNTIL_DATE
+  // в bot.py. После этой даты кнопка сама вернётся к "Купить за 1500 ₽".
+  const PROMO_FREE_UNTIL = new Date("2026-09-01T00:00:00");
+  const isPromoActive = new Date() < PROMO_FREE_UNTIL;
 
   // Тарифы Билайн — реальные, с mycompany.beeline.ru (те же данные, что и в
   // TARIFFS в bot.py — держите оба списка в синхроне при правках).
@@ -559,7 +573,14 @@
     document.getElementById("detail-minutes").textContent = fmtMinutes(t.minutes);
     document.getElementById("detail-sms").textContent = fmtSms(t.sms);
     document.getElementById("detail-desc").textContent = t.short + ".";
-    document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
+    const promoNoteEl = document.getElementById("promo-note");
+    if (isPromoActive) {
+      document.getElementById("buy-btn").textContent = "🟡 ПОДКЛЮЧИТЬ БЕСПЛАТНО";
+      promoNoteEl.classList.remove("hidden");
+    } else {
+      document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
+      promoNoteEl.classList.add("hidden");
+    }
 
     // "Что входит" — если для тарифа задан точный "details" (реальные условия
     // с сайта, как у "Решение за 550"), используем его вместо общих строк.
