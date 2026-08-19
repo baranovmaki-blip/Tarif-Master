@@ -3,7 +3,7 @@ services:
     name: tarif-master-bot
     runtime: python
     plan: starter
-    buildCommand: "pip install -r requirements.txt && playwright install --with-deps chromium"
+    buildCommand: "pip install -r requirements.txt && playwright install chromium"
     startCommand: "python bot.py"
     envVars:
       - key: BOT_TOKEN
