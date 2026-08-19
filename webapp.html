@@ -361,7 +361,13 @@
     { name: "Пробизнес 3.0 (2000 мин)", price: 364,  priceAfter: 560,  gb: "безлимит", minutes: 2000, sms: 1000, short: "Скидка 35% на первые 12 месяцев" },
     { name: "Решение за 400",           price: 407,  priceAfter: null, gb: 35,         minutes: 800,  sms: 300,  short: "35 ГБ плюс безлимитный интернет по России" },
     { name: "Гибкий интернет 2.0",      price: 500,  priceAfter: null, gb: "безлимит", minutes: null, sms: null, short: "Безлимитный интернет, звонки на Билайн бесплатно" },
-    { name: "Решение за 550",           price: 559,  priceAfter: null, gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения" },
+    { name: "Решение за 550",           price: 559,  priceAfter: null, gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения",
+      details: [
+        "Мобильный интернет в странах «Зоны 1» и на территории Беларуси — 500 МБ",
+        "Исходящие вызовы на номера других операторов по всей России (кроме Билайн и Крыма) — 1800 минут",
+        "SMS и MMS по РФ в домашней сети и в поездках по РФ — 1000 SMS",
+        "Мобильный интернет по всей России в сети Билайн — 60 ГБ",
+      ] },
     { name: "Пробизнес 3.0 (2500 мин)", price: 610,  priceAfter: null, gb: "безлимит", minutes: 2500, sms: 1000, short: "Для среднего бизнеса" },
     { name: "Пробизнес 3.0 (3000 мин)", price: 715,  priceAfter: null, gb: "безлимит", minutes: 3000, sms: 1000, short: "Для активного бизнес-общения" },
     { name: "Пробизнес 3.0 (5000 мин)", price: 1020, priceAfter: null, gb: "безлимит", minutes: 5000, sms: 1000, short: "Много минут для компании" },
@@ -442,13 +448,18 @@
     document.getElementById("detail-desc").textContent = t.short + ".";
     document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
 
-    // "Что входит" — реальные пункты по данным тарифа плюс два общих для
-    // всех тарифов факта, подтверждённых пользователем (паспорт/раздача Wi-Fi).
+    // "Что входит" — если для тарифа задан точный "details" (реальные условия
+    // с сайта, как у "Решение за 550"), используем его вместо общих строк.
+    // Плюс общие для всех тарифов факты, подтверждённые пользователем.
     const includes = [];
-    includes.push(t.minutes != null ? t.minutes + " минут по России" : "Звонки по России — без ограничений по минутам");
+    if (t.details) {
+      includes.push(...t.details);
+    } else {
+      includes.push(t.minutes != null ? t.minutes + " минут по России" : "Звонки по России — без ограничений по минутам");
+      includes.push(t.gb === "безлимит" ? "Безлимитный интернет" : t.gb + " ГБ интернета");
+      if (t.sms != null) includes.push(t.sms + " SMS");
+    }
     includes.push("Безлимитные звонки на номера Билайн");
-    includes.push(t.gb === "безлимит" ? "Безлимитный интернет" : t.gb + " ГБ интернета");
-    if (t.sms != null) includes.push(t.sms + " SMS");
     includes.push("Безлимитная раздача интернета по Wi-Fi");
     if (t.priceAfter) includes.push("Скидка на абонентскую плату — первые 12 месяцев");
     document.getElementById("detail-includes").innerHTML = includes.map(x => `<li>${x}</li>`).join("");
