@@ -1,0 +1,30 @@
+services:
+  - type: worker
+    name: tarif-master-bot
+    runtime: python
+    plan: starter
+    buildCommand: "pip install -r requirements.txt && playwright install --with-deps chromium"
+    startCommand: "python bot.py"
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: CLAUDE_API_KEY
+        sync: false
+      - key: ADMIN_CHAT_ID
+        sync: false
+      - key: MANAGER_CHAT_ID
+        sync: false
+      - key: YOOKASSA_SHOP_ID
+        sync: false
+      - key: YOOKASSA_SECRET_KEY
+        sync: false
+      - key: MANAGER_TELEGRAM_USERNAME
+        sync: false
+      - key: WEBAPP_URL
+        sync: false
+      - key: GOOGLE_SHEETS_URL
+        sync: false
+      - key: EMAIL_ACCOUNT
+        sync: false
+      - key: EMAIL_APP_PASSWORD
+        sync: false
