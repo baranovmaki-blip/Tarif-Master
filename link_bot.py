@@ -135,8 +135,8 @@ def _is_admin(chat_id) -> bool:
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Чужим — полная тишина, не выдаём даже то, что бот вообще на что-то реагирует.
     if not _is_admin(update.effective_chat.id):
-        await update.message.reply_text("Этот бот только для админа.")
         return
     await update.message.reply_text(
         "Жмите кнопку — получите свежую одноразовую ссылку на подключение с Билайна. "
@@ -147,8 +147,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def get_link_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
+    # На практике недостижимо (кнопку видит только админ — см. start()),
+    # но проверяем и здесь на всякий случай, тоже молча.
     if not _is_admin(update.effective_chat.id):
-        await query.answer("Только для админа.", show_alert=True)
+        await query.answer()
         return
     await query.answer()
 
