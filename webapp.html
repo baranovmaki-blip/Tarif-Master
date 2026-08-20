@@ -316,14 +316,6 @@
   }
   .buy-btn:active { opacity: 0.85; }
 
-  .promo-note {
-    text-align: center;
-    font-size: 12px;
-    color: var(--yellow);
-    font-weight: 600;
-    margin-top: 8px;
-  }
-
   .hidden { display: none; }
 </style>
 </head>
@@ -379,8 +371,7 @@
       ❗️ На корпоративных номерах смена тарифа недоступна.
     </div>
 
-    <button class="buy-btn" id="buy-btn" onclick="buyTariff()">🟡 КУПИТЬ ЗА 1500 ₽</button>
-    <div class="promo-note hidden" id="promo-note">Акция действует до 1 сентября</div>
+    <button class="buy-btn" id="buy-btn" onclick="buyTariff()">🟡 ПОДКЛЮЧИТЬ ТАРИФ</button>
   </div>
 
 </div>
@@ -566,10 +557,7 @@
     document.getElementById("detail-minutes").textContent = fmtMinutes(t.minutes);
     document.getElementById("detail-sms").textContent = fmtSms(t.sms);
     document.getElementById("detail-desc").textContent = t.short + ".";
-    // Сейчас заказы обрабатываются вручную — кнопка просто оставляет заявку
-    // в чате с ботом, без оплаты и без обещаний конкретной цены/акции.
-    document.getElementById("buy-btn").textContent = "🟡 ОСТАВИТЬ ЗАЯВКУ";
-    document.getElementById("promo-note").classList.add("hidden");
+    document.getElementById("buy-btn").textContent = "🟡 ПОДКЛЮЧИТЬ ТАРИФ";
 
     // "Что входит" — если для тарифа задан точный "details" (реальные условия
     // с сайта, как у "Решение за 550"), используем его вместо общих строк.
@@ -601,17 +589,16 @@
 
   function buyTariff() {
     if (!selectedTariff) return;
-    if (tg) {
-      tg.sendData(JSON.stringify({
-        action: "buy_tariff",
-        tariff: selectedTariff.name,
-        price: String(CONNECTION_FEE),
-      }));
+    // Заказы сейчас обрабатываются вручную — кнопка сразу открывает личную
+    // переписку с менеджером, с готовым текстом про выбранный тариф.
+    const message = `Здравствуйте! Хочу подключить тариф «${selectedTariff.name}»`;
+    const url = "https://t.me/" + MANAGER_USERNAME + "?text=" + encodeURIComponent(message);
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink(url);
       tg.close();
     } else {
-      // Открыто вне Telegram (например, в обычном браузере при отладке) —
-      // sendData недоступен, просто предупреждаем.
-      alert("Откройте это приложение через кнопку в Telegram-боте.");
+      // Открыто вне Telegram (например, в обычном браузере при отладке).
+      window.open(url, "_blank");
     }
   }
 
