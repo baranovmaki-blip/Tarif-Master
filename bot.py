@@ -143,17 +143,8 @@ TARIFF_CHANGE_TIMING_TEXT = (
     "если тариф применится не сразу, это нормально, просто подождите."
 )
 
-# Через сколько после подключения просить чаевые — "где-то час-два".
-TIPS_MESSAGE_DELAY_SECONDS = 90 * 60
-TIPS_URL = "https://tips.tips/000480421"
-
 PAYMENT_CHECK_INTERVAL_SECONDS = 30       # как часто проверять все ожидающие платежи
 PAYMENT_REMINDER_DELAY_SECONDS = 30 * 60  # через сколько напомнить неоплатившему
-IDLE_NUDGE_DELAY_SECONDS = 3 * 60         # первое напоминание — через 3 минуты
-# Дальше напоминания повторяются, пока клиент не ответит (любая кнопка/сообщение
-# отменяет цепочку). Разрыв между повторами каждый раз растёт на этот шаг:
-# 3 мин -> +5 (8 мин) -> +10 (18 мин) -> +15 (33 мин) -> +20 ...
-IDLE_NUDGE_STEP_SECONDS = 5 * 60
 # ==========================================================================
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -816,21 +807,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         reply_markup=keyboard,
     )
 
-    # Если клиент "завис" и 3 минуты не жмёт ни одну кнопку — сами напомним о себе,
-    # а дальше повторяем с растущим интервалом, пока он не ответит (см. idle_nudge_job).
-    context.job_queue.run_once(
-        idle_nudge_job,
-        when=IDLE_NUDGE_DELAY_SECONDS,
-        chat_id=update.effective_chat.id,
-        user_id=user.id,
-        data={
-            "chat_id": update.effective_chat.id,
-            "user_id": user.id,
-            "next_interval": IDLE_NUDGE_STEP_SECONDS,
-        },
-        name=f"idle_{user.id}",
-    )
-
     return BROWSING
 
 
@@ -856,7 +832,6 @@ async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TY
         return BROWSING
 
     user = update.effective_user
-    _cancel_job(context, f"idle_{user.id}")
 
     order_number = context.user_data.get("order_number")
     if order_number in orders:
@@ -884,7 +859,6 @@ async def human_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
 
     user = update.effective_user
-    _cancel_job(context, f"idle_{user.id}")
 
     order_number = context.user_data.get("order_number")
     await notify_admins(
@@ -1022,12 +996,6 @@ async def _connect_order(context: ContextTypes.DEFAULT_TYPE, order_number: int, 
         text=f"✅ Ссылка для подключения тарифа: {link}",
     )
     await context.bot.send_message(chat_id=order["chat_id"], text=TARIFF_CHANGE_TIMING_TEXT)
-    context.job_queue.run_once(
-        send_tips_message_job,
-        when=TIPS_MESSAGE_DELAY_SECONDS,
-        data={"chat_id": order["chat_id"]},
-        name=f"tips_{order_number}",
-    )
     await _notify_status_change(context, order_number, old_status, "connected")
 
 
@@ -1305,12 +1273,6 @@ async def _finalize_paid_order(
         text=f"✅ Ссылка для подключения тарифа: {link}",
     )
     await context.bot.send_message(chat_id=order["chat_id"], text=TARIFF_CHANGE_TIMING_TEXT)
-    context.job_queue.run_once(
-        send_tips_message_job,
-        when=TIPS_MESSAGE_DELAY_SECONDS,
-        data={"chat_id": order["chat_id"]},
-        name=f"tips_{order_number}",
-    )
     await _notify_status_change(context, order_number, old_status2, "connected")
 
 
@@ -1338,18 +1300,6 @@ async def check_pending_payments_job(context: ContextTypes.DEFAULT_TYPE) -> None
             logger.info("Платёж по заказу #%s отменён/истёк", order_number)
 
 
-async def send_tips_message_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Разовое сообщение с просьбой оставить чаевые — через TIPS_MESSAGE_DELAY_SECONDS
-    после того, как клиенту ушла ссылка на подключение тарифа."""
-    data = context.job.data
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("💛 Оставить чаевые", url=TIPS_URL)]])
-    await context.bot.send_message(
-        chat_id=data["chat_id"],
-        text="Понравился наш бот? Если да — можете оставить чаевые, будем очень благодарны 💛",
-        reply_markup=keyboard,
-    )
-
-
 async def remind_payment_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Разовое напоминание клиенту через PAYMENT_REMINDER_DELAY_SECONDS после создания платежа."""
     data = context.job.data
@@ -1363,34 +1313,6 @@ async def remind_payment_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     await context.bot.send_message(
         chat_id=data["chat_id"],
         text="Вы ещё не оплатили. Ссылка действительна 24 часа.",
-    )
-
-
-async def idle_nudge_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Клиент долго не принимал решение — напоминаем о себе и сразу планируем
-    следующее напоминание с увеличенным интервалом (см. IDLE_NUDGE_STEP_SECONDS).
-    Цепочка повторяется, пока клиент не нажмёт любую кнопку — это отменяет job
-    по имени f"idle_{user_id}" (см. _cancel_job в web_app_data_received,
-    human_button_pressed)."""
-    data = context.job.data
-    await context.bot.send_message(
-        chat_id=data["chat_id"],
-        text="Вы всё ещё здесь? Нужна помощь?",
-        reply_markup=_HUMAN_BUTTON_KEYBOARD,
-    )
-
-    next_interval = data["next_interval"]
-    context.job_queue.run_once(
-        idle_nudge_job,
-        when=next_interval,
-        chat_id=data["chat_id"],
-        user_id=data["user_id"],
-        data={
-            "chat_id": data["chat_id"],
-            "user_id": data["user_id"],
-            "next_interval": next_interval + IDLE_NUDGE_STEP_SECONDS,
-        },
-        name=f"idle_{data['user_id']}",
     )
 
 
