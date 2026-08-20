@@ -393,11 +393,6 @@
   // Тот же менеджер, что и в MANAGER_TELEGRAM_USERNAME в bot.py.
   const MANAGER_USERNAME = "MinBar_Co";
 
-  // Акция "бесплатное подключение" — та же дата, что и PROMO_FREE_UNTIL_DATE
-  // в bot.py. После этой даты кнопка сама вернётся к "Купить за 1500 ₽".
-  const PROMO_FREE_UNTIL = new Date("2026-09-01T00:00:00");
-  const isPromoActive = new Date() < PROMO_FREE_UNTIL;
-
   // Тарифы Билайн — реальные, с mycompany.beeline.ru (те же данные, что и в
   // TARIFFS в bot.py — держите оба списка в синхроне при правках).
   // gb: число ГБ либо строка "безлимит". minutes/sms: число либо null, если
@@ -571,14 +566,10 @@
     document.getElementById("detail-minutes").textContent = fmtMinutes(t.minutes);
     document.getElementById("detail-sms").textContent = fmtSms(t.sms);
     document.getElementById("detail-desc").textContent = t.short + ".";
-    const promoNoteEl = document.getElementById("promo-note");
-    if (isPromoActive) {
-      document.getElementById("buy-btn").textContent = "🟡 ПОДКЛЮЧИТЬ БЕСПЛАТНО";
-      promoNoteEl.classList.remove("hidden");
-    } else {
-      document.getElementById("buy-btn").textContent = "🟡 КУПИТЬ ЗА " + CONNECTION_FEE + " ₽";
-      promoNoteEl.classList.add("hidden");
-    }
+    // Сейчас заказы обрабатываются вручную — кнопка просто оставляет заявку
+    // в чате с ботом, без оплаты и без обещаний конкретной цены/акции.
+    document.getElementById("buy-btn").textContent = "🟡 ОСТАВИТЬ ЗАЯВКУ";
+    document.getElementById("promo-note").classList.add("hidden");
 
     // "Что входит" — если для тарифа задан точный "details" (реальные условия
     // с сайта, как у "Решение за 550"), используем его вместо общих строк.

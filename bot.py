@@ -835,10 +835,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """WebApp закрылся и передал выбор клиента (Telegram.WebApp.sendData) —
-    клиент уже подтвердил покупку кнопкой внутри WebApp. Пока действует акция
-    (см. PROMO_FREE_UNTIL_DATE) — подключаем сразу бесплатно, без ЮKassa;
-    после даты акции сама собой возвращается обычная платная схема."""
+    """WebApp закрылся и передал выбор клиента (Telegram.WebApp.sendData).
+    Сейчас заказы обрабатываются вручную (админ сам переписывается с каждым
+    клиентом) — бот НЕ создаёт платёж и не подключает тариф сам, только
+    фиксирует выбор в CRM и передаёт клиента в переписку. Автоматическая
+    схема (ЮKassa/бесплатная акция) осталась в коде нетронутой — это
+    _finalize_paid_order/create_yookassa_payment, их можно снова подключить
+    сюда одной правкой, если понадобится."""
     try:
         payload = json.loads(update.effective_message.web_app_data.data)
         tariff_name = payload["tariff"]
@@ -856,68 +859,23 @@ async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TY
     _cancel_job(context, f"idle_{user.id}")
 
     order_number = context.user_data.get("order_number")
-
-    if date.today() < PROMO_FREE_UNTIL_DATE:
-        # Акция: подключение бесплатное — без ЮKassa, сразу идём получать
-        # ссылку у Билайна (тот же путь, что и после реальной оплаты).
-        if order_number in orders:
-            orders[order_number]["tariff"] = tariff["name"]
-            orders[order_number]["price"] = 0
-            _save_orders()
-
-        await _finalize_paid_order(
-            context,
-            order_number,
-            intro_text=(
-                f"🎉 Тариф «{tariff['name']}» подключаем бесплатно по акции "
-                f"(до {PROMO_FREE_UNTIL_DATE.strftime('%d.%m.%Y')})!\n"
-                "Получаю для вас ссылку на подключение — это может занять до минуты..."
-            ),
-        )
-        return ConversationHandler.END
-
-    # --- Акция закончилась — обычная платная схема через ЮKassa ---
     if order_number in orders:
         orders[order_number]["tariff"] = tariff["name"]
         _save_orders()
         await send_to_google_sheets(context, order_number)
 
-    description = f"Тариф-Мастер — подключение тарифа «{tariff['name']}» (Билайн), заказ #{order_number}"
-
-    try:
-        payment_id, confirmation_url = await create_yookassa_payment(CONNECTION_FEE_RUB, description)
-    except Exception:
-        # Даже если оплата онлайн не собралась — менеджер остаётся рабочим
-        # путём подключения, клиент не должен упереться в тупик.
-        logger.exception("Не удалось создать платёж в ЮKassa")
-        await update.message.reply_text(
-            f"Для подключения тарифа «{tariff['name']}» напишите нашему менеджеру:\n"
-            f"@{MANAGER_TELEGRAM_USERNAME}\n\n"
-            "Оплата онлайн сейчас недоступна — сообщите об этом менеджеру."
-        )
-        await notify_admins(context, f"⚠️ Ошибка создания платежа в ЮKassa по заказу #{order_number}")
-        return ConversationHandler.END
-
-    if order_number in orders:
-        orders[order_number]["payment_id"] = payment_id
-        _save_orders()
-
-    # Напоминание, если клиент не оплатит в течение получаса.
-    context.job_queue.run_once(
-        remind_payment_job,
-        when=PAYMENT_REMINDER_DELAY_SECONDS,
-        data={"order_number": order_number, "chat_id": update.effective_chat.id},
-        name=f"remind_{order_number}",
+    await notify_admins(
+        context,
+        f"🛒 Клиент выбрал тариф «{tariff['name']}» (заказ #{order_number}) — "
+        f"{user.full_name} (@{user.username or 'без username'}, id {user.id}). "
+        "Ответьте ему в этом чате.",
     )
 
     await update.message.reply_text(
         f"Вы выбрали тариф «{tariff['name']}».\n\n"
-        f"Для подключения напишите нашему менеджеру:\n"
-        f"@{MANAGER_TELEGRAM_USERNAME}\n\n"
-        f"Или оплатите онлайн: {confirmation_url}\n\n"
-        "После оплаты тариф будет подключён автоматически."
+        "Мы уже на связи — ответим вам здесь в ближайшее время и поможем подключить."
     )
-    return ConversationHandler.END
+    return BROWSING
 
 
 async def human_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
