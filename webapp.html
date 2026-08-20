@@ -594,8 +594,10 @@
     const message = `Здравствуйте! Хочу подключить тариф «${selectedTariff.name}»`;
     const url = "https://t.me/" + MANAGER_USERNAME + "?text=" + encodeURIComponent(message);
     if (tg && tg.openTelegramLink) {
+      // Начиная с Bot API 7.0 openTelegramLink() сам не закрывает мини-апп —
+      // если сразу вызвать tg.close(), приложение закрывается раньше, чем
+      // Telegram успевает выполнить переход, и переписка не открывается.
       tg.openTelegramLink(url);
-      tg.close();
     } else {
       // Открыто вне Telegram (например, в обычном браузере при отладке).
       window.open(url, "_blank");
