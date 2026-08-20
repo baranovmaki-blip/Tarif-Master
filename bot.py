@@ -778,12 +778,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     }
     _save_orders()
     context.user_data["order_number"] = order_number
-    await send_to_google_sheets(context, order_number)
-
-    await notify_admins(
-        context,
-        f"🆕 Новый заказ #{order_number}\n👤 Клиент: {user.full_name} (@{user.username or 'без username'}, id {user.id})",
-    )
 
     if WEBAPP_URL:
         # Важно: Telegram.WebApp.sendData() (то, чем WebApp передаёт выбор
@@ -801,10 +795,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         logger.warning("WEBAPP_URL не задан — кнопка каталога не будет показана клиенту.")
         keyboard = _HUMAN_BUTTON_KEYBOARD
 
+    # Сначала мгновенно отвечаем клиенту — только потом синхронизация с Google
+    # Sheets и уведомление админу (Apps Script может отвечать по 3-8 секунд;
+    # если ждать это до ответа, клиент видит "зависший" бот и уходит).
     await update.message.reply_text(
         _CATALOG_INTRO_TEXT,
         parse_mode="HTML",
         reply_markup=keyboard,
+    )
+
+    await send_to_google_sheets(context, order_number)
+    await notify_admins(
+        context,
+        f"🆕 Новый заказ #{order_number}\n👤 Клиент: {user.full_name} (@{user.username or 'без username'}, id {user.id})",
     )
 
     return BROWSING
