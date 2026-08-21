@@ -614,7 +614,11 @@ async def request_beeline_link() -> None:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         try:
-            await page.goto(BEELINE_AUTH_URL, wait_until="networkidle", timeout=30000)
+            # "networkidle" не используем — Playwright сам не советует на него
+            # полагаться (страница может никогда не "затихнуть" из-за фоновых
+            # запросов аналитики/виджетов); .fill() ниже сам дождётся, пока
+            # поле email появится и станет доступно для ввода.
+            await page.goto(BEELINE_AUTH_URL, wait_until="domcontentloaded", timeout=30000)
             await page.locator('input[name="email"]').fill(EMAIL_ACCOUNT)
             await page.locator('button[type="submit"]').click()
             await page.wait_for_timeout(2000)  # даём странице обработать отправку
