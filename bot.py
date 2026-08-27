@@ -493,8 +493,8 @@ def get_ai_answer(question: str, operator: str) -> str:
 
     fallback = (
         f"Спасибо за вопрос! Подключение занимает немного времени и стоит "
-        f"{price_text}. Нажмите «Оплатить», чтобы оформить, "
-        "или уточните что-то ещё."
+        f"{price_text}. Откройте каталог тарифов и выберите нужный, или "
+        "уточните что-то ещё — либо сразу напишите менеджеру."
     )
 
     client = _claude_client()
@@ -1395,6 +1395,10 @@ def main() -> None:
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
+        # Без этого повторный /start во время уже идущего диалога (BROWSING)
+        # молча игнорируется — entry_points по умолчанию не перезапускают
+        # активный ConversationHandler, а команды исключены из states[BROWSING].
+        allow_reentry=True,
     )
 
     application.add_handler(conversation)
