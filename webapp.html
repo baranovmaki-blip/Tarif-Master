@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Тарифы Билайн</title>
+<title>Тариф-Мастер</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root {
@@ -317,19 +317,71 @@
   .buy-btn:active { opacity: 0.85; }
 
   .hidden { display: none; }
+
+  /* Переключатель "Тарифы" / "Красивые номера" на главном экране */
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab-btn {
+    flex: 1;
+    background: var(--card-bg);
+    color: var(--gray);
+    border: 1px solid #333;
+    border-radius: 999px;
+    padding: 10px 0;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--yellow); color: var(--black); border-color: var(--yellow); }
+
+  /* Фильтры по типу номера (Все / Золотые / Серебряные / VIP / Эксклюзив) */
+  .filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .filter-chip {
+    background: var(--card-bg);
+    color: var(--white);
+    border: 1px solid #333;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .filter-chip.active { background: var(--yellow); color: var(--black); border-color: var(--yellow); }
+
+  .tariff-card.unavailable { opacity: 0.55; }
+
+  .empty-note {
+    grid-column: 1 / -1;
+    color: var(--gray);
+    font-size: 13px;
+    text-align: center;
+    padding: 24px 0;
+  }
 </style>
 </head>
 <body>
 
 <div class="container">
 
-  <!-- ===== Экран 1: список тарифов ===== -->
+  <!-- ===== Экран 1: список тарифов / красивых номеров ===== -->
   <div id="catalog-screen">
     <div class="header">
-      <div class="logo">⚡ ТАРИФЫ БИЛАЙН</div>
-      <div class="subtitle">Официальный партнёр</div>
+      <div class="logo">⚡ ТАРИФ-МАСТЕР</div>
+      <div class="subtitle" id="header-subtitle">Официальный партнёр Билайн</div>
     </div>
-    <div id="catalog-list" class="card-grid"></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-tariffs" onclick="switchTab('tariffs')">Тарифы</button>
+      <button class="tab-btn" id="tab-numbers" onclick="switchTab('numbers')">✨ Красивые номера</button>
+    </div>
+
+    <div id="tariffs-view">
+      <div id="catalog-list" class="card-grid"></div>
+    </div>
+
+    <div id="numbers-view" class="hidden">
+      <div class="filter-row" id="numbers-filters"></div>
+      <div id="numbers-list" class="card-grid"></div>
+    </div>
 
     <div class="footer">
       <button class="manager-btn" onclick="contactManager()">💬 Связаться с менеджером</button>
@@ -372,6 +424,24 @@
     </div>
 
     <button class="buy-btn" id="buy-btn" onclick="buyTariff()">🟡 ПОДКЛЮЧИТЬ ТАРИФ</button>
+  </div>
+
+  <!-- ===== Экран 3: карточка красивого номера ===== -->
+  <div id="number-detail-screen" class="hidden">
+    <button class="back-btn" onclick="showCatalog()">← Назад</button>
+    <div class="detail-name" id="number-detail-name"></div>
+    <div class="stat-row"><span class="label">💰 Цена</span><span class="value" id="number-detail-price"></span></div>
+    <div class="stat-row"><span class="label">📶 Оператор</span><span class="value" id="number-detail-operator"></span></div>
+    <div class="stat-row"><span class="label">🏷 Тип</span><span class="value" id="number-detail-type"></span></div>
+    <div class="stat-row"><span class="label">📌 Статус</span><span class="value" id="number-detail-status"></span></div>
+
+    <div class="note">
+      ❗️ Номер сейчас на другой сети — при заказе поможем перенести его на
+      Билайн отдельной услугой (перенос номера, MNP).<br>
+      ❗️ Номер закрепляется за вами на 24 часа с момента заказа.
+    </div>
+
+    <button class="buy-btn" id="number-buy-btn" onclick="buyNumber()">🟡 ЗАКАЗАТЬ НОМЕР</button>
   </div>
 
 </div>
@@ -432,6 +502,24 @@
         "Мобильный интернет по всей России в сети Билайн — 35 ГБ",
         "SMS и MMS по РФ в домашней сети и в поездках по РФ — 300 SMS",
       ] },
+    { name: "БизнесПРО (700 мин, 10 ГБ)", price: 400, priceAfter: null, gb: 10,        minutes: 700,  sms: 100,  short: "Много минут для активных звонков, 10 ГБ на месяц",
+      details: [
+        "Исходящие вызовы на номера всех операторов по всей России, в том числе в Крыму и Севастополе — 700 минут",
+        "Мобильный интернет по всей России в сети Билайн — 10 ГБ",
+        "SMS и MMS по РФ в домашней сети и в поездках по РФ — 100 SMS",
+      ] },
+    { name: "БизнесПРО (600 мин, 20 ГБ)", price: 400, priceAfter: null, gb: 20,        minutes: 600,  sms: 100,  short: "Баланс минут и интернета на каждый день",
+      details: [
+        "Исходящие вызовы на номера всех операторов по всей России, в том числе в Крыму и Севастополе — 600 минут",
+        "Мобильный интернет по всей России в сети Билайн — 20 ГБ",
+        "SMS и MMS по РФ в домашней сети и в поездках по РФ — 100 SMS",
+      ] },
+    { name: "БизнесПРО (500 мин, 30 ГБ)", price: 400, priceAfter: null, gb: 30,        minutes: 500,  sms: 100,  short: "Больше интернета для работы вне офиса",
+      details: [
+        "Исходящие вызовы на номера всех операторов по всей России, в том числе в Крыму и Севастополе — 500 минут",
+        "Мобильный интернет по всей России в сети Билайн — 30 ГБ",
+        "SMS и MMS по РФ в домашней сети и в поездках по РФ — 100 SMS",
+      ] },
     { name: "Решение за 550",           price: 559,  priceAfter: null, gb: 60,         minutes: 1800, sms: 1000, short: "Много интернета и SMS для активного общения",
       details: [
         "Мобильный интернет в странах «Зоны 1» и на территории Беларуси — 500 МБ",
@@ -472,6 +560,48 @@
         "Исходящие вызовы на номера других операторов по всей России (кроме Билайн и Крыма), а также входящие в странах «Зоны 1» — 6000 минут",
       ] },
   ];
+
+  // Красивые номера — тот же список, что _DEFAULT_NUMBERS в
+  // beautiful_numbers.py (держите оба места в синхроне при правках).
+  // Статус тут статичен на момент открытия WebApp — в отличие от /numbers
+  // в самом боте, эта страница не резервирует номер и не проверяет живой
+  // статус, а просто открывает переписку с менеджером (как и с тарифами,
+  // см. buyTariff() ниже) — резерв на 24 часа менеджер фиксирует вручную.
+  const NUMBERS = [
+    { id: "1",  number: "9851793333", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "2",  number: "9851796666", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "3",  number: "9852145555", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "4",  number: "9851893333", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "5",  number: "9851826666", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "6",  number: "9851834444", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "7",  number: "9851930000", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "8",  number: "9851792222", operator: "МТС", price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "9",  number: "9017591111", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "10", number: "9779514444", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "11", number: "9777162222", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "12", number: "9776929999", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "13", number: "9017929999", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "14", number: "9919220001", operator: "T2",  price: 15000, type: "Эксклюзив", status: "Доступен" },
+  ];
+  const NUMBER_TYPE_EMOJI = { "Золотой": "🥇", "Серебряный": "🥈", "VIP": "👑", "Эксклюзив": "💎" };
+  const NUMBER_FILTERS = [
+    { key: "all",    label: "Все",        type: null },
+    { key: "gold",   label: "Золотые",    type: "Золотой" },
+    { key: "silver", label: "Серебряные", type: "Серебряный" },
+    { key: "vip",    label: "VIP",        type: "VIP" },
+    { key: "excl",   label: "Эксклюзив",  type: "Эксклюзив" },
+  ];
+  let numberFilter = "all";
+  let selectedNumber = null;
+
+  function formatPhone(raw) {
+    const digits = String(raw).replace(/\D/g, "");
+    if (digits.length !== 10) return "+7 " + raw;
+    return `+7 ${digits.slice(0, 3)} ${digits.slice(3, 6)}-${digits.slice(6, 8)}-${digits.slice(8, 10)}`;
+  }
+  function formatRub(value) {
+    return Number(value).toLocaleString("ru-RU") + " ₽";
+  }
 
   function fmtGb(gb) {
     return gb === "безлимит" ? "Безлимит" : gb + " ГБ";
@@ -583,8 +713,106 @@
 
   function showCatalog() {
     document.getElementById("detail-screen").classList.add("hidden");
+    document.getElementById("number-detail-screen").classList.add("hidden");
     document.getElementById("catalog-screen").classList.remove("hidden");
     if (tg) tg.BackButton.hide();
+  }
+
+  // ===== Красивые номера =====
+  function renderNumberFilters() {
+    const row = document.getElementById("numbers-filters");
+    row.innerHTML = "";
+    NUMBER_FILTERS.forEach((f) => {
+      const btn = document.createElement("button");
+      btn.className = "filter-chip" + (f.key === numberFilter ? " active" : "");
+      btn.textContent = f.label;
+      btn.onclick = () => {
+        numberFilter = f.key;
+        renderNumberFilters();
+        renderNumbers();
+      };
+      row.appendChild(btn);
+    });
+  }
+
+  function renderNumbers() {
+    const list = document.getElementById("numbers-list");
+    list.innerHTML = "";
+    const activeFilter = NUMBER_FILTERS.find((f) => f.key === numberFilter) || {};
+    const items = NUMBERS.filter((n) => !activeFilter.type || n.type === activeFilter.type);
+
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty-note">В этой категории пока нет номеров.</div>';
+      return;
+    }
+
+    items.forEach((n) => {
+      const available = n.status === "Доступен";
+      const wrap = document.createElement("div");
+      wrap.className = "card-wrap";
+      wrap.innerHTML = `
+        <div class="tariff-card${available ? "" : " unavailable"}">
+          <div class="hit-badge">${NUMBER_TYPE_EMOJI[n.type] || "📱"} ${n.type}</div>
+          <div class="label">Номер</div>
+          <div class="name" style="font-size:17px;">${formatPhone(n.number)}</div>
+          <div class="stats">
+            <div class="stat-line" style="font-size:13px;">${n.operator}<span class="unit">сеть</span></div>
+            ${available ? "" : `<div class="stat-line" style="font-size:12px;">${n.status}</div>`}
+          </div>
+          <div class="sim-icon"></div>
+          <div class="price-badge">
+            <span class="unit">₽</span>
+            <span class="value">${Number(n.price).toLocaleString("ru-RU")}</span>
+          </div>
+        </div>
+        <button class="more-btn">Подробнее</button>
+      `;
+      wrap.querySelector(".tariff-card").onclick = () => showNumberDetail(n);
+      wrap.querySelector(".more-btn").onclick = () => showNumberDetail(n);
+      list.appendChild(wrap);
+    });
+  }
+
+  function showNumberDetail(n) {
+    selectedNumber = n;
+    const available = n.status === "Доступен";
+
+    document.getElementById("number-detail-name").textContent = "📱 " + formatPhone(n.number);
+    document.getElementById("number-detail-price").textContent = formatRub(n.price);
+    document.getElementById("number-detail-operator").textContent = n.operator;
+    document.getElementById("number-detail-type").textContent = (NUMBER_TYPE_EMOJI[n.type] || "") + " " + n.type;
+    document.getElementById("number-detail-status").textContent = n.status;
+
+    const buyBtn = document.getElementById("number-buy-btn");
+    buyBtn.textContent = available ? "🟡 ЗАКАЗАТЬ НОМЕР" : "Номер сейчас недоступен";
+    buyBtn.disabled = !available;
+    buyBtn.style.opacity = available ? "1" : "0.5";
+
+    document.getElementById("catalog-screen").classList.add("hidden");
+    document.getElementById("number-detail-screen").classList.remove("hidden");
+    if (tg) tg.BackButton.show();
+  }
+
+  function buyNumber() {
+    if (!selectedNumber || selectedNumber.status !== "Доступен") return;
+    const message =
+      `Здравствуйте! Хочу заказать красивый номер ${formatPhone(selectedNumber.number)} ` +
+      `(${formatRub(selectedNumber.price)})`;
+    const url = "https://t.me/" + MANAGER_USERNAME + "?text=" + encodeURIComponent(message);
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink(url);
+    } else {
+      window.open(url, "_blank");
+    }
+  }
+
+  function switchTab(tab) {
+    document.getElementById("tab-tariffs").classList.toggle("active", tab === "tariffs");
+    document.getElementById("tab-numbers").classList.toggle("active", tab === "numbers");
+    document.getElementById("tariffs-view").classList.toggle("hidden", tab !== "tariffs");
+    document.getElementById("numbers-view").classList.toggle("hidden", tab !== "numbers");
+    document.getElementById("header-subtitle").textContent =
+      tab === "tariffs" ? "Официальный партнёр Билайн" : "Продажа вместе с тарифом · перенос на Билайн";
   }
 
   function buyTariff() {
@@ -616,6 +844,8 @@
   if (tg) tg.BackButton.onClick(showCatalog);
 
   renderCatalog();
+  renderNumberFilters();
+  renderNumbers();
 </script>
 
 </body>

@@ -224,6 +224,30 @@ TARIFFS = {
             "short": "35 ГБ плюс безлимитный интернет по России",
         },
         {
+            "name": "БизнесПРО (700 мин, 10 ГБ)",
+            "price": 400,
+            "minutes": 700,
+            "gb": 10,
+            "sms": 100,
+            "short": "Много минут для активных звонков, 10 ГБ на месяц",
+        },
+        {
+            "name": "БизнесПРО (600 мин, 20 ГБ)",
+            "price": 400,
+            "minutes": 600,
+            "gb": 20,
+            "sms": 100,
+            "short": "Баланс минут и интернета на каждый день",
+        },
+        {
+            "name": "БизнесПРО (500 мин, 30 ГБ)",
+            "price": 400,
+            "minutes": 500,
+            "gb": 30,
+            "sms": 100,
+            "short": "Больше интернета для работы вне офиса",
+        },
+        {
             "name": "Решение за 550",
             "price": 559,
             "minutes": 1800,
@@ -748,7 +772,8 @@ async def auto_register_tariff(context: ContextTypes.DEFAULT_TYPE, order_number:
 _CATALOG_INTRO_TEXT = (
     "📱 <b>ТАРИФЫ БИЛАЙН</b>\n\n"
     "Подключаем выгодные тарифы. Официальный партнёр.\n\n"
-    "👇 Откройте каталог и выберите тариф:"
+    "👇 Откройте каталог и выберите тариф:\n\n"
+    "✨ А ещё у нас есть красивые номера — /numbers"
 )
 
 
@@ -1415,6 +1440,18 @@ def main() -> None:
     application.add_handler(CommandHandler("report", report_command))
     application.add_handler(CallbackQueryHandler(admin_connect_button, pattern=r"^connect_order_\d+$"))
     application.add_handler(CallbackQueryHandler(admin_decline_order_button, pattern=r"^decline_order_\d+$"))
+
+    # «Красивые номера» (/numbers) — отдельный модуль, каталог вшит в код
+    # (см. beautiful_numbers.py, как и TARIFFS выше), живое состояние — в
+    # numbers.json рядом с orders.json. Импорт намеренно локальный:
+    # beautiful_numbers.py делает `import bot as core`, и к моменту main()
+    # этот модуль (bot.py) уже полностью загружен.
+    from beautiful_numbers import numbers_expiry_sweep_job, register_numbers_handlers
+
+    register_numbers_handlers(application)
+    # Подчищает просроченные (>24ч) резервы номеров, даже если сутки никто
+    # не заходил в /numbers.
+    application.job_queue.run_repeating(numbers_expiry_sweep_job, interval=900, first=60)
 
     # Еженедельный отчёт — каждое воскресенье в 20:00 (часовой пояс — TIMEZONE_OFFSET_HOURS).
     application.job_queue.run_daily(
