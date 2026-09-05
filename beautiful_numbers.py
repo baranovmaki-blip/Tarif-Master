@@ -68,11 +68,11 @@ TYPE_EMOJI = {
 }
 
 # ===== Каталог номеров (вшит в код, как и TARIFFS в bot.py) =====
-# Реальные номера с физических SIM-карт (МТС и T2/Tele2) — не Билайн; при
-# продаже клиенту номер переносится на Билайн через MNP (перенос номера).
-# Цена — 15 000 ₽ для всех, по вашей просьбе; поправьте здесь, если нужно
-# разделить по типу/оператору. reserved_until/reserved_by заполняет и
-# очищает сам бот при заказе/отмене/истечении — не трогайте их руками.
+# Реальные номера с физических SIM-карт (МТС и T2/Tele2). Цена у большинства
+# 15 000 ₽ (по вашей просьбе), у номеров с "9999" в хвосте (id 12, 13) —
+# 23 000 ₽; поправьте здесь, если нужно ещё разделить по типу/оператору.
+# reserved_until/reserved_by заполняет и очищает сам бот при заказе/отмене/
+# истечении — не трогайте их руками.
 _DEFAULT_NUMBERS: list[dict] = [
     {"id": "1", "number": "9851793333", "operator": "МТС", "price": 15000, "type": "Золотой",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
@@ -96,9 +96,9 @@ _DEFAULT_NUMBERS: list[dict] = [
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
     {"id": "11", "number": "9777162222", "operator": "T2", "price": 15000, "type": "Золотой",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "12", "number": "9776929999", "operator": "T2", "price": 15000, "type": "Золотой",
+    {"id": "12", "number": "9776929999", "operator": "T2", "price": 23000, "type": "Золотой",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "13", "number": "9017929999", "operator": "T2", "price": 15000, "type": "Золотой",
+    {"id": "13", "number": "9017929999", "operator": "T2", "price": 23000, "type": "Золотой",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
     {"id": "14", "number": "9919220001", "operator": "T2", "price": 15000, "type": "Эксклюзив",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
@@ -398,7 +398,7 @@ async def confirm_tariff_callback(update: Update, context: ContextTypes.DEFAULT_
     order_number = core._generate_order_number()
     number_note = f"{phone}"
     if number_operator:
-        number_note += f" ({number_operator} — потребуется перенос номера, MNP)"
+        number_note += f" ({number_operator})"
     core.orders[order_number] = {
         "user_id": user.id,
         "chat_id": query.message.chat_id,

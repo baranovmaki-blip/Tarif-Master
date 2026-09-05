@@ -349,6 +349,28 @@
 
   .tariff-card.unavailable { opacity: 0.55; }
 
+  /* Красивые номера: цвет карточки по оператору вместо жёлтого — T2
+     чёрно-белый (как их реальная упаковка), МТС красный (их фирменный
+     цвет). Только для карточек номеров (класс добавляется в JS), тарифы
+     Билайн остаются жёлтыми. */
+  .tariff-card.op-t2 { background: linear-gradient(150deg, #2e2e2e 0%, #141414 55%, #000000 100%); }
+  .tariff-card.op-t2 .label,
+  .tariff-card.op-t2 .name,
+  .tariff-card.op-t2 .stat-line,
+  .tariff-card.op-t2 .stat-line .unit { color: var(--white); }
+  .tariff-card.op-t2 .stats { border-left-color: rgba(255,255,255,0.4); }
+  .tariff-card.op-t2 .hit-badge { background: var(--white); color: #000; }
+  .tariff-card.op-t2 .sim-icon { background: var(--white); }
+  .tariff-card.op-t2 .sim-icon::after { background: linear-gradient(135deg, #555, #222); }
+
+  .tariff-card.op-mts { background: linear-gradient(150deg, #ff5b5b 0%, #E30611 55%, #9c0000 100%); }
+  .tariff-card.op-mts .label,
+  .tariff-card.op-mts .name,
+  .tariff-card.op-mts .stat-line,
+  .tariff-card.op-mts .stat-line .unit { color: var(--white); }
+  .tariff-card.op-mts .stats { border-left-color: rgba(255,255,255,0.45); }
+  .tariff-card.op-mts .hit-badge { background: #000; color: #fff; }
+
   .empty-note {
     grid-column: 1 / -1;
     color: var(--gray);
@@ -436,8 +458,6 @@
     <div class="stat-row"><span class="label">📌 Статус</span><span class="value" id="number-detail-status"></span></div>
 
     <div class="note">
-      ❗️ Номер сейчас на другой сети — при заказе поможем перенести его на
-      Билайн отдельной услугой (перенос номера, MNP).<br>
       ❗️ Номер закрепляется за вами на 24 часа с момента заказа.
     </div>
 
@@ -579,8 +599,8 @@
     { id: "9",  number: "9017591111", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
     { id: "10", number: "9779514444", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
     { id: "11", number: "9777162222", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
-    { id: "12", number: "9776929999", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
-    { id: "13", number: "9017929999", operator: "T2",  price: 15000, type: "Золотой",   status: "Доступен" },
+    { id: "12", number: "9776929999", operator: "T2",  price: 23000, type: "Золотой",   status: "Доступен" },
+    { id: "13", number: "9017929999", operator: "T2",  price: 23000, type: "Золотой",   status: "Доступен" },
     { id: "14", number: "9919220001", operator: "T2",  price: 15000, type: "Эксклюзив", status: "Доступен" },
   ];
   const NUMBER_TYPE_EMOJI = { "Золотой": "🥇", "Серебряный": "🥈", "VIP": "👑", "Эксклюзив": "💎" };
@@ -601,6 +621,11 @@
   }
   function formatRub(value) {
     return Number(value).toLocaleString("ru-RU") + " ₽";
+  }
+  function operatorClass(operator) {
+    if (operator === "T2") return " op-t2";
+    if (operator === "МТС") return " op-mts";
+    return "";
   }
 
   function fmtGb(gb) {
@@ -751,7 +776,7 @@
       const wrap = document.createElement("div");
       wrap.className = "card-wrap";
       wrap.innerHTML = `
-        <div class="tariff-card${available ? "" : " unavailable"}">
+        <div class="tariff-card${available ? "" : " unavailable"}${operatorClass(n.operator)}">
           <div class="hit-badge">${NUMBER_TYPE_EMOJI[n.type] || "📱"} ${n.type}</div>
           <div class="label">Номер</div>
           <div class="name" style="font-size:17px;">${formatPhone(n.number)}</div>
@@ -777,7 +802,10 @@
     selectedNumber = n;
     const available = n.status === "Доступен";
 
-    document.getElementById("number-detail-name").textContent = "📱 " + formatPhone(n.number);
+    const nameEl = document.getElementById("number-detail-name");
+    nameEl.textContent = "📱 " + formatPhone(n.number);
+    nameEl.style.color = n.operator === "T2" ? "#ffffff" : n.operator === "МТС" ? "#ff4b4b" : "";
+
     document.getElementById("number-detail-price").textContent = formatRub(n.price);
     document.getElementById("number-detail-operator").textContent = n.operator;
     document.getElementById("number-detail-type").textContent = (NUMBER_TYPE_EMOJI[n.type] || "") + " " + n.type;
@@ -812,7 +840,7 @@
     document.getElementById("tariffs-view").classList.toggle("hidden", tab !== "tariffs");
     document.getElementById("numbers-view").classList.toggle("hidden", tab !== "numbers");
     document.getElementById("header-subtitle").textContent =
-      tab === "tariffs" ? "Официальный партнёр Билайн" : "Продажа вместе с тарифом · перенос на Билайн";
+      tab === "tariffs" ? "Официальный партнёр Билайн" : "Продажа вместе с тарифом";
   }
 
   function buyTariff() {
