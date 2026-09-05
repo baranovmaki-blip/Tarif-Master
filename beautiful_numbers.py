@@ -68,33 +68,35 @@ TYPE_EMOJI = {
 }
 
 # ===== Каталог номеров (вшит в код, как и TARIFFS в bot.py) =====
-# Реальные номера с физических SIM-карт (МТС и T2/Tele2). Цена у большинства
-# 15 000 ₽ (по вашей просьбе), у номеров с "9999" в хвосте (id 12, 13) —
-# 23 000 ₽; поправьте здесь, если нужно ещё разделить по типу/оператору.
-# reserved_until/reserved_by заполняет и очищает сам бот при заказе/отмене/
-# истечении — не трогайте их руками.
+# Реальные номера с физических SIM-карт (МТС и T2/Tele2). Тип/цена — по
+# хвостовым цифрам номера: "3333"/"4444"/"1111"/"2222" -> Серебряный,
+# 10 000 ₽; "5555"/"0000" -> Золотой, 15 000 ₽; "6666" -> Эксклюзив,
+# 20 000 ₽; "9999" -> VIP, 25 000 ₽ (плюс id 14 — изначально эксклюзивный
+# номер без повторяющегося хвоста, 15 000 ₽). Поправьте здесь, если нужно
+# ещё разделить по типу/оператору. reserved_until/reserved_by заполняет и
+# очищает сам бот при заказе/отмене/истечении — не трогайте их руками.
 _DEFAULT_NUMBERS: list[dict] = [
-    {"id": "1", "number": "9851793333", "operator": "МТС", "price": 1000, "type": "Серебряный",
+    {"id": "1", "number": "9851793333", "operator": "МТС", "price": 10000, "type": "Серебряный",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
     {"id": "2", "number": "9851796666", "operator": "МТС", "price": 20000, "type": "Эксклюзив",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
     {"id": "3", "number": "9852145555", "operator": "МТС", "price": 15000, "type": "Золотой",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "4", "number": "9851893333", "operator": "МТС", "price": 1000, "type": "Серебряный",
+    {"id": "4", "number": "9851893333", "operator": "МТС", "price": 10000, "type": "Серебряный",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
     {"id": "5", "number": "9851826666", "operator": "МТС", "price": 20000, "type": "Эксклюзив",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "6", "number": "9851834444", "operator": "МТС", "price": 1000, "type": "Серебряный",
+    {"id": "6", "number": "9851834444", "operator": "МТС", "price": 10000, "type": "Серебряный",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
     {"id": "7", "number": "9851930000", "operator": "МТС", "price": 15000, "type": "Золотой",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "8", "number": "9851792222", "operator": "МТС", "price": 1000, "type": "Серебряный",
+    {"id": "8", "number": "9851792222", "operator": "МТС", "price": 10000, "type": "Серебряный",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "9", "number": "9017591111", "operator": "T2", "price": 1000, "type": "Серебряный",
+    {"id": "9", "number": "9017591111", "operator": "T2", "price": 10000, "type": "Серебряный",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "10", "number": "9779514444", "operator": "T2", "price": 1000, "type": "Серебряный",
+    {"id": "10", "number": "9779514444", "operator": "T2", "price": 10000, "type": "Серебряный",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
-    {"id": "11", "number": "9777162222", "operator": "T2", "price": 1000, "type": "Серебряный",
+    {"id": "11", "number": "9777162222", "operator": "T2", "price": 10000, "type": "Серебряный",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
     {"id": "12", "number": "9776929999", "operator": "T2", "price": 25000, "type": "VIP",
      "status": "Доступен", "added_date": "05.09.2026", "reserved_until": "", "reserved_by": ""},
