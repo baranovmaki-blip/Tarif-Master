@@ -850,18 +850,20 @@
 
   function buyTariff() {
     if (!selectedTariff) return;
-    // Открывает чат с самим ботом (не с менеджером) — текст сообщения бот
-    // узнаёт по шаблону (см. _BUY_TARIFF_RE в bot.py) и сам спрашивает номер
-    // телефона, затем сразу присылает ссылку на подключение.
+    // tg.sendData() передаёт выбор боту напрямую (см. web_app_data_received
+    // в bot.py) и сама закрывает мини-апп — клиенту не нужно ничего писать
+    // или нажимать "отправить", сообщение с номером телефона придёт само.
+    if (tg && tg.sendData) {
+      tg.sendData(JSON.stringify({ tariff: selectedTariff.name }));
+      return;
+    }
+    // Открыто вне Telegram (например, в обычном браузере при отладке) —
+    // sendData недоступен, открываем чат с ботом как запасной вариант.
     const message = `Здравствуйте! Хочу подключить тариф «${selectedTariff.name}»`;
     const url = "https://t.me/" + BOT_USERNAME + "?text=" + encodeURIComponent(message);
     if (tg && tg.openTelegramLink) {
-      // Начиная с Bot API 7.0 openTelegramLink() сам не закрывает мини-апп —
-      // если сразу вызвать tg.close(), приложение закрывается раньше, чем
-      // Telegram успевает выполнить переход, и переписка не открывается.
       tg.openTelegramLink(url);
     } else {
-      // Открыто вне Telegram (например, в обычном браузере при отладке).
       window.open(url, "_blank");
     }
   }

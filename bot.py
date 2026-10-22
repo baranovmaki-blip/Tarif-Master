@@ -850,13 +850,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """WebApp закрылся и передал выбор клиента (Telegram.WebApp.sendData).
-    Сейчас заказы обрабатываются вручную (админ сам переписывается с каждым
-    клиентом) — бот НЕ создаёт платёж и не подключает тариф сам, только
-    фиксирует выбор в CRM и передаёт клиента в переписку. Автоматическая
-    схема (ЮKassa/бесплатная акция) осталась в коде нетронутой — это
-    _finalize_paid_order/create_yookassa_payment, их можно снова подключить
-    сюда одной правкой, если понадобится."""
+    """WebApp закрылся и передал выбор клиента (Telegram.WebApp.sendData) —
+    приходит сразу по нажатию кнопки в WebApp, без участия клиента (ему не
+    нужно ничего писать/отправлять в чате). Сохраняем тариф и сразу просим
+    номер телефона — см. phone_number_received, которая после него сама
+    запросит у Билайна одноразовую ссылку и пришлёт её клиенту."""
     try:
         payload = json.loads(update.effective_message.web_app_data.data)
         tariff_name = payload["tariff"]
@@ -881,15 +879,15 @@ async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TY
     await notify_admins(
         context,
         f"🛒 Клиент выбрал тариф «{tariff['name']}» (заказ #{order_number}) — "
-        f"{user.full_name} (@{user.username or 'без username'}, id {user.id}). "
-        "Ответьте ему в этом чате.",
+        f"{user.full_name} (@{user.username or 'без username'}, id {user.id}).",
     )
 
     await update.message.reply_text(
         f"Вы выбрали тариф «{tariff['name']}».\n\n"
-        "Мы уже на связи — ответим вам здесь в ближайшее время и поможем подключить."
+        "Напишите, пожалуйста, номер телефона, на котором хотите сменить тариф "
+        "(например, +7(999)999-99-99) — и я сразу пришлю ссылку на подключение."
     )
-    return BROWSING
+    return AWAITING_PHONE
 
 
 async def human_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
