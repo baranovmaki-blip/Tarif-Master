@@ -869,8 +869,18 @@ async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TY
         return BROWSING
 
     user = update.effective_user
-
     order_number = context.user_data.get("order_number")
+
+    # Сначала мгновенно отвечаем клиенту — только потом синхронизация с Google
+    # Sheets и уведомление админу (Apps Script может отвечать по 3-8 секунд;
+    # если ждать это до ответа, клиент видит "зависший" бот — см. тот же
+    # приём в start()).
+    await update.message.reply_text(
+        f"Вы выбрали тариф «{tariff['name']}».\n\n"
+        "Напишите, пожалуйста, номер телефона, на котором хотите сменить тариф "
+        "(например, +7(999)999-99-99) — и я сразу пришлю ссылку на подключение."
+    )
+
     if order_number in orders:
         orders[order_number]["tariff"] = tariff["name"]
         _save_orders()
@@ -880,12 +890,6 @@ async def web_app_data_received(update: Update, context: ContextTypes.DEFAULT_TY
         context,
         f"🛒 Клиент выбрал тариф «{tariff['name']}» (заказ #{order_number}) — "
         f"{user.full_name} (@{user.username or 'без username'}, id {user.id}).",
-    )
-
-    await update.message.reply_text(
-        f"Вы выбрали тариф «{tariff['name']}».\n\n"
-        "Напишите, пожалуйста, номер телефона, на котором хотите сменить тариф "
-        "(например, +7(999)999-99-99) — и я сразу пришлю ссылку на подключение."
     )
     return AWAITING_PHONE
 
