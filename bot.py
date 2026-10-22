@@ -779,7 +779,8 @@ async def auto_register_tariff(context: ContextTypes.DEFAULT_TYPE, order_number:
 _CATALOG_INTRO_TEXT = (
     "📱 <b>ТАРИФЫ БИЛАЙН</b>\n\n"
     "Подключаем выгодные тарифы. Официальный партнёр.\n\n"
-    "👇 Откройте каталог и выберите тариф:"
+    "👇 Откройте каталог и выберите тариф:\n\n"
+    "✨ А ещё у нас есть красивые номера — /numbers"
 )
 
 
