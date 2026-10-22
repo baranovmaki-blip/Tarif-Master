@@ -384,7 +384,6 @@ async def send_to_google_sheets(context: ContextTypes.DEFAULT_TYPE, order_number
         "created_at": order["created_at"],
         "name": order["name"],
         "phone": order["phone"],
-        "telegram_id": order["user_id"],
         "operator": order["operator"],
         "tariff": order["tariff"],
         "price": order["price"],
@@ -428,6 +427,14 @@ async def _update_order_status(
 # тарифа (см. web_app_data_received) — весь путь укладывается в одно
 # состояние ConversationHandler.
 BROWSING = 0
+# Клиент нажал "Подключить тариф" в WebApp (кнопка открывает чат с готовым
+# текстом «Хочу подключить тариф «...»», см. question_during_offer) — ждём
+# от него номер телефона, затем сразу шлём одноразовую ссылку на Билайн.
+AWAITING_PHONE = 1
+
+# Готовый текст из buyTariff() в webapp.html — по нему узнаём, что клиент
+# нажал "Подключить тариф", а не просто написал вопрос.
+_BUY_TARIFF_RE = re.compile(r"Хочу подключить тариф «(.+?)»")
 
 _HUMAN_BUTTON_KEYBOARD = InlineKeyboardMarkup(
     [[InlineKeyboardButton("💬 Связаться с менеджером", callback_data="human")]]
@@ -772,8 +779,7 @@ async def auto_register_tariff(context: ContextTypes.DEFAULT_TYPE, order_number:
 _CATALOG_INTRO_TEXT = (
     "📱 <b>ТАРИФЫ БИЛАЙН</b>\n\n"
     "Подключаем выгодные тарифы. Официальный партнёр.\n\n"
-    "👇 Откройте каталог и выберите тариф:\n\n"
-    "✨ А ещё у нас есть красивые номера — /numbers"
+    "👇 Откройте каталог и выберите тариф:"
 )
 
 
@@ -918,6 +924,19 @@ async def question_during_offer(update: Update, context: ContextTypes.DEFAULT_TY
     text = update.message.text
     operator = context.user_data.get("operator", DEFAULT_OPERATOR)
 
+    buy_match = _BUY_TARIFF_RE.search(text)
+    if buy_match:
+        order_number = context.user_data.get("order_number")
+        if order_number in orders:
+            orders[order_number]["tariff"] = buy_match.group(1)
+            _save_orders()
+            await send_to_google_sheets(context, order_number)
+        await update.message.reply_text(
+            "Отлично! Напишите, пожалуйста, номер телефона, на котором хотите "
+            "сменить тариф — и я сразу пришлю ссылку на подключение."
+        )
+        return AWAITING_PHONE
+
     if _looks_like_objection(text):
         await update.message.reply_text(
             "Понимаю ваши сомнения. Хотите, я подключу живого менеджера, "
@@ -937,6 +956,50 @@ async def question_during_offer(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         keyboard = _HUMAN_BUTTON_KEYBOARD
     await update.message.reply_text(answer, reply_markup=keyboard)
+    return BROWSING
+
+
+async def phone_number_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Клиент прислал номер телефона после нажатия "Подключить тариф" —
+    сохраняем его в заказ/Google Sheets и сразу запрашиваем у Билайна
+    одноразовую ссылку на подключение (см. auto_register_tariff), без
+    ожидания оплаты — для этого флоу оплата и подключение разведены."""
+    text = update.message.text
+    digits = re.sub(r"\D", "", text)
+
+    if len(digits) < 10:
+        await update.message.reply_text(
+            "Похоже, это не номер телефона — пришлите его цифрами, например 9991234567."
+        )
+        return AWAITING_PHONE
+
+    order_number = context.user_data.get("order_number")
+    if order_number not in orders:
+        await update.message.reply_text("Не нашёл ваш заказ — начните заново: /start")
+        return ConversationHandler.END
+
+    orders[order_number]["phone"] = text.strip()
+    _save_orders()
+    await send_to_google_sheets(context, order_number)
+
+    await update.message.reply_text(
+        "⏳ Запрашиваю ссылку у Билайна — это может занять до минуты..."
+    )
+
+    link = await auto_register_tariff(context, order_number)
+
+    if link is None:
+        await update.message.reply_text(
+            "⚠️ Не получилось автоматически получить ссылку — её пришлёт менеджер "
+            "в этом чате в ближайшее время."
+        )
+        return BROWSING
+
+    await update.message.reply_text(
+        f"✅ Вот ваша ссылка на подключение: {link}\n\n"
+        f"Перейдите по ней и укажите номер телефона ({orders[order_number]['phone']}), "
+        "на него придёт код подтверждения — тариф подключится в течение часа."
+    )
     return BROWSING
 
 
@@ -1417,6 +1480,9 @@ def main() -> None:
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_received),
                 CallbackQueryHandler(human_button_pressed, pattern="^human$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, question_during_offer),
+            ],
+            AWAITING_PHONE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, phone_number_received),
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],

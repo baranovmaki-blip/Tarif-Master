@@ -22,7 +22,7 @@
  *
  * ===== ЧТО ДЕЛАЕТ =====
  * - Лист «Заказы»: одна строка на заказ. Если заказ с таким номером уже
- *   есть — обновляет её (A-K), не трогая колонку L «Комментарий» — туда
+ *   есть — обновляет её (A-J), не трогая колонку K «Комментарий» — туда
  *   можно дописывать заметки прямо в таблице, бот их не затирает.
  * - Лист «Отчёты»: создаётся автоматически, пересчитывается при каждом
  *   заказе — сводная статистика по всем заказам в таблице.
@@ -32,7 +32,7 @@ const SHEET_NAME = 'Заказы';
 const REPORTS_SHEET_NAME = 'Отчёты';
 
 const ORDERS_HEADERS = [
-  'Номер заказа', 'Дата создания', 'Имя', 'Телефон', 'Telegram ID',
+  'Номер заказа', 'Дата создания', 'Имя', 'Телефон',
   'Оператор', 'Тариф', 'Сумма', 'Статус', 'Дата оплаты', 'Дата подключения', 'Комментарий',
 ];
 
@@ -46,7 +46,6 @@ function doPost(e) {
       data.created_at || '',
       data.name || '',
       data.phone || '',
-      data.telegram_id || '',
       data.operator || '',
       data.tariff || '',
       data.price || '',
@@ -58,7 +57,7 @@ function doPost(e) {
     const existingRow = findRowByOrderNumber_(sheet, data.order_number);
 
     if (existingRow) {
-      // Обновляем A-K, колонку L (Комментарий) не трогаем — её можно
+      // Обновляем A-J, колонку K (Комментарий) не трогаем — её можно
       // заполнять вручную прямо в таблице.
       sheet.getRange(existingRow, 1, 1, values.length).setValues([values]);
     } else {
@@ -124,8 +123,8 @@ function updateReportsSheet_() {
   let newCount = 0, paidCount = 0, connectedCount = 0, declinedCount = 0, revenue = 0;
 
   rows.forEach(function (row) {
-    const status = row[8];   // колонка I
-    const price = Number(row[7]) || 0; // колонка H
+    const status = row[7];   // колонка H
+    const price = Number(row[6]) || 0; // колонка G
 
     if (status === 'new') {
       newCount++;
