@@ -934,7 +934,7 @@ async def question_during_offer(update: Update, context: ContextTypes.DEFAULT_TY
             await send_to_google_sheets(context, order_number)
         await update.message.reply_text(
             "Отлично! Напишите, пожалуйста, номер телефона, на котором хотите "
-            "сменить тариф (например, 9991234567) — и я сразу пришлю ссылку на подключение."
+            "сменить тариф (например, +7(999)999-99-99) — и я сразу пришлю ссылку на подключение."
         )
         return AWAITING_PHONE
 
@@ -970,7 +970,7 @@ async def phone_number_received(update: Update, context: ContextTypes.DEFAULT_TY
 
     if len(digits) < 10:
         await update.message.reply_text(
-            "Похоже, это не номер телефона — пришлите его цифрами, например 9991234567."
+            "Похоже, это не номер телефона — пришлите его в формате, например, +7(999)999-99-99."
         )
         return AWAITING_PHONE
 
